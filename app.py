@@ -6,6 +6,8 @@ import smtplib
 import json
 import secrets
 import string
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from email.message import EmailMessage
 
@@ -431,9 +433,37 @@ def get_secret_bool(name: str, default: bool = False) -> bool:
     return raw_value in {"1", "true", "yes", "on"}
 
 
+def send_telegram_notification(title: str, body_lines: list[str]) -> tuple[bool, str]:
+    bot_token = get_secret_value("TELEGRAM_BOT_TOKEN")
+    chat_id = get_secret_value("TELEGRAM_CHAT_ID")
+
+    if not bot_token or not chat_id:
+        return False, "Powiadomienie Telegram nie zostało wysłane, bo brakuje konfiguracji."
+
+    text = "\n".join([title, ""] + body_lines)
+    payload = urllib.parse.urlencode(
+        {
+            "chat_id": chat_id,
+            "text": text,
+        }
+    ).encode("utf-8")
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    try:
+        request = urllib.request.Request(url, data=payload, method="POST")
+        with urllib.request.urlopen(request, timeout=15) as response:
+            response.read()
+        return True, "Powiadomienie Telegram zostało wysłane."
+    except Exception as exc:
+        if telegram_ok:
+            return True, f"Telegram został wysłany, ale email się nie udał: {exc}"
+        return False, f"Nie udało się wysłać powiadomienia Telegram: {exc}"
+
+
 
 
 def send_report_notification(subject: str, body_lines: list[str]) -> tuple[bool, str]:
+    telegram_ok, telegram_message = send_telegram_notification(subject, body_lines)
     smtp_host = get_secret_value("SMTP_HOST")
     smtp_port = int(get_secret_value("SMTP_PORT", "587"))
     smtp_user = get_secret_value("SMTP_USER")
@@ -441,6 +471,11 @@ def send_report_notification(subject: str, body_lines: list[str]) -> tuple[bool,
     smtp_from = get_secret_value("SMTP_FROM") or smtp_user
     notify_to = get_secret_value("REPORT_NOTIFY_TO", NOTIFY_EMAIL)
     smtp_use_ssl = get_secret_bool("SMTP_USE_SSL", smtp_port == 465)
+
+    if not all([smtp_host, smtp_user, smtp_password, smtp_from]):
+        if telegram_ok:
+            return True, telegram_message
+        return False, "Powiadomienie email i Telegram nie zostały wysłane, bo brakuje konfiguracji SMTP."
 
     if not all([smtp_host, smtp_user, smtp_password, smtp_from]):
         return False, "Powiadomienie email nie zostało wysłane, bo brakuje konfiguracji SMTP."
@@ -462,6 +497,9 @@ def send_report_notification(subject: str, body_lines: list[str]) -> tuple[bool,
                 server.starttls()
             server.login(smtp_user, smtp_password)
             server.send_message(message)
+        if telegram_ok:
+            return True, f"Powiadomienie email zostało wysłane na {notify_to}. Telegram też został wysłany."
+        return True, f"Powiadomienie email zostało wysłane na {notify_to}."
         return True, f"Powiadomienie email zostało wysłane na {notify_to}."
     except Exception as exc:
         return False, f"Nie udało się wysłać powiadomienia email: {exc}"
