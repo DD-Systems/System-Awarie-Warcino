@@ -989,82 +989,67 @@ if not st.session_state.authenticated:
 
         with form_col:
             with st.container(border=True):
-                auth_mode = st.radio(
-                    "Tryb panelu",
-                    ["Logowanie", "Rejestracja", "Reset hasła"],
-                    index=0,
-                    horizontal=True,
-                    label_visibility="collapsed",
-                )
+                form_spacer_left, form_inner, form_spacer_right = st.columns([1, 7, 1])
+                with form_inner:
+                    auth_mode = st.radio(
+                        "Tryb panelu",
+                        ["Logowanie", "Rejestracja", "Reset hasła"],
+                        index=0,
+                        horizontal=True,
+                        label_visibility="collapsed",
+                    )
 
-                if auth_mode == "Logowanie":
-                    st.markdown("<div class='auth-mode-caption'>Dostęp do konta użytkownika lub administratora.</div>", unsafe_allow_html=True)
-                    with st.form("login_form", clear_on_submit=True):
-                        login = st.text_input("Email lub nazwa użytkownika", placeholder="Wpisz email lub nazwę użytkownika")
-                        password = st.text_input("Hasło", type="password", placeholder="Wpisz swoje hasło")
-                        login_button = st.form_submit_button("Zaloguj się")
+                    if auth_mode == "Logowanie":
+                        st.markdown("<div class='auth-mode-caption'>Dostęp do konta użytkownika lub administratora.</div>", unsafe_allow_html=True)
+                        with st.form("login_form", clear_on_submit=True):
+                            login = st.text_input("Email lub nazwa użytkownika", placeholder="Wpisz email lub nazwę użytkownika")
+                            password = st.text_input("Hasło", type="password", placeholder="Wpisz swoje hasło")
+                            login_button = st.form_submit_button("Zaloguj się")
 
-                    if login_button:
-                        success, user_data = authenticate_user(login, password)
-                        if success:
-                            st.session_state.authenticated = True
-                            st.session_state.user_email = user_data["email"]
-                            st.session_state.user_name = user_data["username"]
-                            st.session_state.user_role = user_data["role"]
-                            st.session_state.must_change_password = user_data.get("must_change_password", False)
-                            st.success(f"Zalogowano jako {st.session_state.user_name}")
-                            st.rerun()
-                        else:
-                            st.error("Nieprawidłowy login lub hasło.")
-                elif auth_mode == "Rejestracja":
-                    st.markdown("<div class='auth-mode-caption'>Załóż nowe konto. Hasło tymczasowe zostanie wysłane na email w domenie tlwarcino.pl.</div>", unsafe_allow_html=True)
-                    with st.form("register_form_v2", clear_on_submit=True):
-                        reg_email_v2 = st.text_input("Email", placeholder="np. jan.kowalski@tlwarcino.pl")
-                        reg_username_v2 = st.text_input("Nazwa użytkownika", placeholder="Wybierz nazwę użytkownika")
-                        register_button_v2 = st.form_submit_button("Zarejestruj się")
+                        if login_button:
+                            success, user_data = authenticate_user(login, password)
+                            if success:
+                                st.session_state.authenticated = True
+                                st.session_state.user_email = user_data["email"]
+                                st.session_state.user_name = user_data["username"]
+                                st.session_state.user_role = user_data["role"]
+                                st.session_state.must_change_password = user_data.get("must_change_password", False)
+                                st.success(f"Zalogowano jako {st.session_state.user_name}")
+                                st.rerun()
+                            else:
+                                st.error("Nieprawidłowy login lub hasło.")
+                    elif auth_mode == "Rejestracja":
+                        st.markdown("<div class='auth-mode-caption'>Załóż nowe konto. Hasło tymczasowe zostanie wysłane na email w domenie tlwarcino.pl.</div>", unsafe_allow_html=True)
+                        with st.form("register_form_v2", clear_on_submit=True):
+                            reg_email_v2 = st.text_input("Email", placeholder="np. jan.kowalski@tlwarcino.pl")
+                            reg_username_v2 = st.text_input("Nazwa użytkownika", placeholder="Wybierz nazwę użytkownika")
+                            register_button_v2 = st.form_submit_button("Zarejestruj się")
 
-                    if register_button_v2:
-                        success, message = register_user(reg_email_v2.strip(), reg_username_v2.strip())
-                        if success:
-                            st.success(message)
-                        else:
-                            st.error(message)
-
-                    st.info("Podczas rejestracji system wysyła hasło tymczasowe na podany adres email.")
-                    st.stop()
-                    st.markdown("<div class='auth-mode-caption'>Załóż nowe konto, aby zgłaszać i edytować własne awarie.</div>", unsafe_allow_html=True)
-                    with st.form("register_form", clear_on_submit=True):
-                        reg_email = st.text_input("Email", placeholder="np. jan.kowalski@tlwarcino.pl")
-                        reg_username = st.text_input("Nazwa użytkownika", placeholder="Wybierz nazwę użytkownika")
-                        reg_password = st.text_input("Hasło", type="password", placeholder="Ustaw hasło")
-                        reg_password_confirm = st.text_input("Powtórz hasło", type="password", placeholder="Powtórz hasło")
-                        register_button = st.form_submit_button("Zarejestruj się")
-
-                    if register_button:
-                        if reg_password != reg_password_confirm:
-                            st.error("Hasła muszą być identyczne.")
-                        else:
-                            success, message = register_user(reg_email.strip(), reg_username.strip(), reg_password)
+                        if register_button_v2:
+                            success, message = register_user(reg_email_v2.strip(), reg_username_v2.strip())
                             if success:
                                 st.success(message)
                             else:
                                 st.error(message)
-                else:
-                    st.markdown("<div class='auth-mode-caption'>Zresetuj hasło. System wyśle hasło tymczasowe bezpośrednio na email użytkownika.</div>", unsafe_allow_html=True)
-                    with st.form("reset_password_request_form", clear_on_submit=True):
-                        request_email = st.text_input("Email do odzyskania hasła", placeholder="Podaj zarejestrowany adres email")
-                        request_username = st.text_input("Nazwa użytkownika", placeholder="Podaj swoją nazwę użytkownika")
-                        request_reset_button = st.form_submit_button("WYŚLIJ")
 
-                    if request_reset_button:
-                        success, message = submit_password_reset_request(
-                            request_email.strip(),
-                            request_username.strip(),
-                        )
-                        if success:
-                            st.success(message)
-                        else:
-                            st.error(message)
+                        st.info("Podczas rejestracji system wysyła hasło tymczasowe na podany adres email.")
+                        st.stop()
+                    else:
+                        st.markdown("<div class='auth-mode-caption'>Zresetuj hasło. System wyśle hasło tymczasowe bezpośrednio na email użytkownika.</div>", unsafe_allow_html=True)
+                        with st.form("reset_password_request_form", clear_on_submit=True):
+                            request_email = st.text_input("Email do odzyskania hasła", placeholder="Podaj zarejestrowany adres email")
+                            request_username = st.text_input("Nazwa użytkownika", placeholder="Podaj swoją nazwę użytkownika")
+                            request_reset_button = st.form_submit_button("WYŚLIJ")
+
+                        if request_reset_button:
+                            success, message = submit_password_reset_request(
+                                request_email.strip(),
+                                request_username.strip(),
+                            )
+                            if success:
+                                st.success(message)
+                            else:
+                                st.error(message)
 
                     st.info("Hasło tymczasowe zostanie wysłane bezpośrednio na email użytkownika.")
                     st.stop()
@@ -1266,12 +1251,14 @@ else:
     telefon = ""
     urzadzenie = "Drukarka"
     if not is_admin:
-        with st.form("formularz_zgloszenia", clear_on_submit=True):
-            st.write("Zgłoszenie zostanie przypisane do Twojego konta automatycznie.")
-            telefon = st.text_input("Telefon kontaktowy (opcjonalnie)", placeholder="np. 600 700 800")
-            opis = st.text_area("Opis awarii (np. nie działa drukarka)", height=150)
-            urzadzenie = st.selectbox("Urządzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
-            przycisk = st.form_submit_button("Wyślij zgłoszenie")
+        form_outer_left, form_outer_center, form_outer_right = st.columns([1, 6, 1])
+        with form_outer_center:
+            with st.form("formularz_zgloszenia", clear_on_submit=True):
+                st.write("Zgłoszenie zostanie przypisane do Twojego konta automatycznie.")
+                telefon = st.text_input("Telefon kontaktowy (opcjonalnie)", placeholder="np. 600 700 800")
+                opis = st.text_area("Opis awarii (np. nie działa drukarka)", height=150)
+                urzadzenie = st.selectbox("Urządzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
+                przycisk = st.form_submit_button("Wyślij zgłoszenie")
 
     if przycisk:
         if opis:
