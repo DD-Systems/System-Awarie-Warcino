@@ -4,6 +4,8 @@ import os
 import hashlib
 import smtplib
 import json
+import secrets
+import string
 from datetime import datetime
 from email.message import EmailMessage
 
@@ -14,6 +16,8 @@ USER_FILE = "uzytkownicy.csv"
 REPORT_FILE = "zgloszenia.csv"
 RESET_REQUEST_FILE = "reset_hasla.csv"
 NOTIFY_EMAIL = "daniel@wmc24.pl"
+ADMIN_EMAIL = "daniel@wmc24.pl"
+USER_PASSWORD_CHANGE_COLUMN = "Wymaga zmiany hasla"
 USER_COLUMNS = ["Email", "Nazwa użytkownika", "Haslo", "Rola"]
 RESET_REQUEST_COLUMNS = [
     "ID",
@@ -294,14 +298,29 @@ def load_users() -> pd.DataFrame:
         for column in USER_COLUMNS:
             if column not in df.columns:
                 df[column] = ""
-        df = df[USER_COLUMNS].copy()
+        if USER_PASSWORD_CHANGE_COLUMN not in df.columns:
+            df[USER_PASSWORD_CHANGE_COLUMN] = ""
+        df = df[USER_COLUMNS + [USER_PASSWORD_CHANGE_COLUMN]].copy()
         df["Rola"] = df["Rola"].replace("", pd.NA).fillna("Użytkownik")
+        df[USER_PASSWORD_CHANGE_COLUMN] = (
+            df[USER_PASSWORD_CHANGE_COLUMN]
+            .replace("", pd.NA)
+            .fillna(False)
+            .astype(str)
+            .str.lower()
+            .isin(["true", "1", "yes"])
+        )
+        admin_mask = df["Email"].astype(str).str.lower() == ADMIN_EMAIL.lower()
+        if admin_mask.any():
+            df.loc[admin_mask, "Rola"] = "Administrator"
         return df
-    return pd.DataFrame(columns=USER_COLUMNS)
+    return pd.DataFrame(columns=USER_COLUMNS + [USER_PASSWORD_CHANGE_COLUMN])
 
 
 def save_users(df: pd.DataFrame) -> None:
-    df = df.copy()[USER_COLUMNS]
+    if USER_PASSWORD_CHANGE_COLUMN not in df.columns:
+        df[USER_PASSWORD_CHANGE_COLUMN] = False
+    df = df.copy()[USER_COLUMNS + [USER_PASSWORD_CHANGE_COLUMN]]
     df.to_csv(USER_FILE, index=False)
 
 
@@ -448,6 +467,64 @@ def send_report_notification(subject: str, body_lines: list[str]) -> tuple[bool,
         return False, f"Nie udało się wysłać powiadomienia email: {exc}"
 
 
+def send_email_to_recipient(recipient: str, subject: str, body_lines: list[str]) -> tuple[bool, str]:
+    smtp_host = get_secret_value("SMTP_HOST")
+    smtp_port = int(get_secret_value("SMTP_PORT", "587"))
+    smtp_user = get_secret_value("SMTP_USER")
+    smtp_password = get_secret_value("SMTP_PASSWORD")
+    smtp_from = get_secret_value("SMTP_FROM") or smtp_user
+    smtp_use_ssl = get_secret_bool("SMTP_USE_SSL", smtp_port == 465)
+
+    if not all([smtp_host, smtp_user, smtp_password, smtp_from, recipient]):
+        return False, "Nie udało się wysłać wiadomości email, bo brakuje konfiguracji SMTP."
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = smtp_from
+    message["To"] = recipient
+    message.set_content("\n".join(body_lines))
+
+    try:
+        if smtp_use_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+
+        with server:
+            if not smtp_use_ssl:
+                server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(message)
+        return True, f"Wiadomość email została wysłana na {recipient}."
+    except Exception as exc:
+        return False, f"Nie udało się wysłać wiadomości email: {exc}"
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def send_temporary_password_email(email: str, username: str, temporary_password: str, context_label: str) -> tuple[bool, str]:
+    return send_email_to_recipient(
+        email,
+        f"Tymczasowe hasło - {context_label}",
+        [
+            "Witaj,",
+            "",
+            f"dla konta {username} zostało przygotowane hasło tymczasowe.",
+            f"Email konta: {email}",
+            f"Hasło tymczasowe: {temporary_password}",
+            "",
+            "Po zalogowaniu zmień hasło na własne w panelu.",
+        ],
+    )
+
+
+def send_admin_account_notification(subject: str, body_lines: list[str]) -> tuple[bool, str]:
+    return send_report_notification(subject, body_lines)
+
+
 def send_new_report_notification(report_row: dict) -> tuple[bool, str]:
     return send_report_notification(
         f"Nowe zgłoszenie awarii #{report_row['ID']} - {report_row['Urządzenie']}",
@@ -490,8 +567,50 @@ def send_status_change_notification(report_row: dict, previous_status: str, acto
     )
 
 
-def register_user(email: str, username: str, password: str) -> tuple[bool, str]:
+def register_user(email: str, username: str, password: str = "") -> tuple[bool, str]:
     users = load_users()
+    if not email.strip() or not username.strip():
+        return False, "Wszystkie pola rejestracji muszą być wypełnione."
+
+    email_lower = email.strip().lower()
+    if not email_lower.endswith("@tlwarcino.pl"):
+        return False, "Rejestracja jest dostępna tylko dla adresów email w domenie tlwarcino.pl."
+
+    username_lower = username.strip().lower()
+    if email_lower in users["Email"].astype(str).str.lower().tolist():
+        return False, "Ten email jest już zarejestrowany."
+    if username_lower in users["Nazwa użytkownika"].astype(str).str.lower().tolist():
+        return False, "Ta nazwa użytkownika jest już zajęta."
+
+    temporary_password = generate_temporary_password()
+    email_ok, email_message = send_temporary_password_email(
+        email.strip(),
+        username.strip(),
+        temporary_password,
+        "Nowe konto",
+    )
+    if not email_ok:
+        return False, email_message
+
+    new_user_row = {
+        "Email": email.strip(),
+        "Nazwa użytkownika": username.strip(),
+        "Haslo": hash_password(temporary_password),
+        "Rola": "Użytkownik",
+        USER_PASSWORD_CHANGE_COLUMN: True,
+    }
+    users = pd.concat([users, pd.DataFrame([new_user_row])], ignore_index=True)
+    save_users(users)
+    send_admin_account_notification(
+        "Nowe konto w panelu awarii",
+        [
+            "Utworzono nowe konto użytkownika.",
+            "",
+            f"Email: {email.strip()}",
+            f"Nazwa użytkownika: {username.strip()}",
+        ],
+    )
+    return True, "Konto zostało utworzone. Hasło tymczasowe zostało wysłane na podany email."
     if not email.strip() or not username.strip() or not password.strip():
         return False, "Wszystkie pola rejestracji muszą być wypełnione."
 
@@ -570,16 +689,23 @@ def submit_password_reset_request(email: str, username: str, reason: str) -> tup
     )
     requests_df = pd.concat([requests_df, new_request], ignore_index=True)
     save_reset_requests(requests_df)
+    send_admin_account_notification(
+        "Nowa prośba o reset hasła",
+        [
+            "Złożono nową prośbę o reset hasła.",
+            "",
+            f"Email: {email.strip()}",
+            f"Nazwa użytkownika: {username.strip()}",
+            f"Powód: {reason.strip() or '-'}",
+        ],
+    )
     return True, "Prosba o reset hasla zostala zapisana. Administrator musi ja zatwierdzic."
 
 
-def approve_password_reset_request(request_id: int, new_password: str, admin_name: str) -> tuple[bool, str]:
+def approve_password_reset_request(request_id: int, admin_name: str) -> tuple[bool, str]:
     requests_df = load_reset_requests()
     if requests_df.empty:
         return False, "Brak prosb o reset hasla."
-
-    if not str(new_password).strip():
-        return False, "Podaj nowe haslo dla wskazanego konta."
 
     request_mask = pd.to_numeric(requests_df["ID"], errors="coerce") == int(request_id)
     if not request_mask.any():
@@ -594,7 +720,18 @@ def approve_password_reset_request(request_id: int, new_password: str, admin_nam
     if not user_mask.any():
         return False, "Nie znaleziono uzytkownika powiazanego z ta prosba."
 
-    users.loc[user_mask, "Haslo"] = hash_password(new_password)
+    temporary_password = generate_temporary_password()
+    email_ok, email_message = send_temporary_password_email(
+        str(request_row["Email"]).strip(),
+        str(request_row["Nazwa użytkownika"]).strip(),
+        temporary_password,
+        "Reset hasła",
+    )
+    if not email_ok:
+        return False, email_message
+
+    users.loc[user_mask, "Haslo"] = hash_password(temporary_password)
+    users.loc[user_mask, USER_PASSWORD_CHANGE_COLUMN] = True
     save_users(users)
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -602,7 +739,17 @@ def approve_password_reset_request(request_id: int, new_password: str, admin_nam
     requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
     requests_df.loc[request_mask, "Data obslugi"] = now
     save_reset_requests(requests_df)
-    return True, "Haslo zostalo zresetowane. Przekaz nowe haslo uzytkownikowi bezpiecznym kanalem."
+    send_admin_account_notification(
+        "Zatwierdzono reset hasła",
+        [
+            "Reset hasła został zatwierdzony.",
+            "",
+            f"Email: {str(request_row['Email']).strip()}",
+            f"Nazwa użytkownika: {str(request_row['Nazwa użytkownika']).strip()}",
+            f"Obsłużone przez: {admin_name}",
+        ],
+    )
+    return True, "Hasło tymczasowe zostało wysłane na email użytkownika."
 
 
 def reject_password_reset_request(request_id: int, admin_name: str) -> tuple[bool, str]:
@@ -626,9 +773,31 @@ def reject_password_reset_request(request_id: int, admin_name: str) -> tuple[boo
     return True, "Prosba o reset hasla zostala odrzucona."
 
 
+def change_user_password(email: str, new_password: str, confirm_password: str) -> tuple[bool, str]:
+    users = load_users()
+    if users.empty:
+        return False, "Baza użytkowników jest pusta."
+
+    if not str(new_password).strip() or not str(confirm_password).strip():
+        return False, "Podaj nowe hasło i jego potwierdzenie."
+    if new_password != confirm_password:
+        return False, "Nowe hasła muszą być identyczne."
+    if len(new_password) < 8:
+        return False, "Nowe hasło musi mieć co najmniej 8 znaków."
+
+    user_mask = users["Email"].astype(str).str.lower() == str(email).strip().lower()
+    if not user_mask.any():
+        return False, "Nie znaleziono użytkownika do zmiany hasła."
+
+    users.loc[user_mask, "Haslo"] = hash_password(new_password)
+    users.loc[user_mask, USER_PASSWORD_CHANGE_COLUMN] = False
+    save_users(users)
+    return True, "Hasło zostało zmienione."
+
+
 def authenticate_user(login: str, password: str) -> tuple[bool, dict]:
     if login.strip().lower() == "admin" and password == "admin":
-        return True, {"email": "admin@wmc.local", "username": "admin", "role": "Administrator"}
+        return True, {"email": ADMIN_EMAIL, "username": "admin", "role": "Administrator", "must_change_password": False}
 
     users = load_users()
     if users.empty:
@@ -643,7 +812,12 @@ def authenticate_user(login: str, password: str) -> tuple[bool, dict]:
     ]
     if not match.empty:
         user = match.iloc[0]
-        return True, {"email": user["Email"], "username": user["Nazwa użytkownika"], "role": user["Rola"]}
+        return True, {
+            "email": user["Email"],
+            "username": user["Nazwa użytkownika"],
+            "role": user["Rola"],
+            "must_change_password": bool(user.get(USER_PASSWORD_CHANGE_COLUMN, False)),
+        }
     return False, {}
 
 
@@ -653,6 +827,7 @@ if "authenticated" not in st.session_state:
     st.session_state.user_email = ""
     st.session_state.user_name = ""
     st.session_state.user_role = ""
+    st.session_state.must_change_password = False
 
 
 # --- LOGOWANIE I REJESTRACJA ---
@@ -698,11 +873,27 @@ if not st.session_state.authenticated:
                             st.session_state.user_email = user_data["email"]
                             st.session_state.user_name = user_data["username"]
                             st.session_state.user_role = user_data["role"]
+                            st.session_state.must_change_password = user_data.get("must_change_password", False)
                             st.success(f"Zalogowano jako {st.session_state.user_name}")
                             st.rerun()
                         else:
                             st.error("Nieprawidłowy login lub hasło.")
                 elif auth_mode == "Rejestracja":
+                    st.markdown("<div class='auth-mode-caption'>Załóż nowe konto. Hasło tymczasowe zostanie wysłane na email w domenie tlwarcino.pl.</div>", unsafe_allow_html=True)
+                    with st.form("register_form_v2", clear_on_submit=True):
+                        reg_email_v2 = st.text_input("Email", placeholder="np. jan.kowalski@tlwarcino.pl")
+                        reg_username_v2 = st.text_input("Nazwa użytkownika", placeholder="Wybierz nazwę użytkownika")
+                        register_button_v2 = st.form_submit_button("Zarejestruj się")
+
+                    if register_button_v2:
+                        success, message = register_user(reg_email_v2.strip(), reg_username_v2.strip())
+                        if success:
+                            st.success(message)
+                        else:
+                            st.error(message)
+
+                    st.info("Podczas rejestracji system wysyła hasło tymczasowe na podany adres email.")
+                    st.stop()
                     st.markdown("<div class='auth-mode-caption'>Załóż nowe konto, aby zgłaszać i edytować własne awarie.</div>", unsafe_allow_html=True)
                     with st.form("register_form", clear_on_submit=True):
                         reg_email = st.text_input("Email", placeholder="np. jan.kowalski@tlwarcino.pl")
@@ -771,7 +962,29 @@ else:
         st.session_state.user_email = ""
         st.session_state.user_name = ""
         st.session_state.user_role = ""
+        st.session_state.must_change_password = False
         st.rerun()
+
+    if st.session_state.must_change_password:
+        st.warning("Zalogowano przy użyciu hasła tymczasowego. Ustaw teraz własne hasło.")
+        with st.form("force_password_change_form"):
+            new_password = st.text_input("Nowe hasło", type="password", placeholder="Ustaw nowe hasło")
+            confirm_password = st.text_input("Powtórz nowe hasło", type="password", placeholder="Powtórz nowe hasło")
+            change_password_button = st.form_submit_button("Zmień hasło")
+
+        if change_password_button:
+            password_ok, password_message = change_user_password(
+                st.session_state.user_email,
+                new_password,
+                confirm_password,
+            )
+            if password_ok:
+                st.session_state.must_change_password = False
+                st.success(password_message)
+                st.rerun()
+            else:
+                st.error(password_message)
+        st.stop()
 
     reports_source_df = load_reports()
     if not reports_source_df.empty:
@@ -780,7 +993,7 @@ else:
 
     if is_admin:
         st.markdown("<div class='section-title'><h3>Dashboard administratora</h3></div>", unsafe_allow_html=True)
-        if st.button("Wyślij testowy email", key="send_test_email_button"):
+        if False:
             test_ok, test_message = send_report_notification(
                 "Test powiadomienia email - Panel zgłoszeniowy awarii",
                 [
@@ -853,17 +1066,12 @@ else:
                     selected_request_id = int(selected_request["ID"])
 
                     with st.form("approve_reset_request_form"):
-                        admin_new_password = st.text_input(
-                            "Nowe haslo tymczasowe",
-                            type="password",
-                            placeholder="Ustaw nowe haslo dla uzytkownika",
-                        )
-                        approve_reset_button = st.form_submit_button("Zatwierdz i ustaw haslo")
+                        st.caption("Po zatwierdzeniu system wyśle użytkownikowi hasło tymczasowe na email.")
+                        approve_reset_button = st.form_submit_button("Zatwierdz i wyślij hasło tymczasowe")
 
                     if approve_reset_button:
                         reset_ok, reset_message = approve_password_reset_request(
                             selected_request_id,
-                            admin_new_password,
                             st.session_state.user_name,
                         )
                         if reset_ok:
