@@ -640,6 +640,17 @@ def register_user(email: str, username: str, password: str = "") -> tuple[bool, 
     users = pd.concat([users, pd.DataFrame([new_user_row])], ignore_index=True)
     save_users(users)
     send_admin_account_notification(
+        "Nowe konto w panelu awarii",
+        [
+            "Utworzono nowe konto użytkownika.",
+            "",
+            f"Email: {email.strip()}",
+            f"Nazwa użytkownika: {username.strip()}",
+        ],
+    )
+    return True, "Konto zostało utworzone. Hasło tymczasowe zostało wysłane na podany email."
+
+    send_admin_account_notification(
         "Reset hasła użytkownika",
         [
             "Użytkownik zresetował hasło i otrzymał hasło tymczasowe na swój email.",
