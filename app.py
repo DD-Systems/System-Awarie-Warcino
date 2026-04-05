@@ -9,6 +9,7 @@ import string
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from email.message import EmailMessage
 
 # Konfiguracja strony
@@ -19,6 +20,7 @@ REPORT_FILE = "zgloszenia.csv"
 RESET_REQUEST_FILE = "reset_hasla.csv"
 NOTIFY_EMAIL = "daniel@wmc24.pl"
 ADMIN_EMAIL = "daniel@wmc24.pl"
+APP_TIMEZONE = ZoneInfo("Europe/Warsaw")
 USER_PASSWORD_CHANGE_COLUMN = "Wymaga zmiany hasla"
 USER_COLUMNS = ["Email", "Nazwa użytkownika", "Haslo", "Rola"]
 RESET_REQUEST_COLUMNS = [
@@ -44,6 +46,19 @@ REPORT_COLUMNS = [
     "Komentarz",
     "Data aktualizacji",
 ]
+
+
+def get_local_now() -> datetime:
+    return datetime.now(APP_TIMEZONE)
+
+
+def get_local_timestamp() -> str:
+    return get_local_now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_local_datetime_series(series: pd.Series) -> pd.Series:
+    parsed = pd.to_datetime(series, errors="coerce", utc=True)
+    return parsed.dt.tz_convert(APP_TIMEZONE).dt.tz_localize(None)
 
 st.markdown(
     "<style>"
@@ -445,7 +460,7 @@ def append_history_entry(history_value: str, actor: str, action: str) -> str:
     history = safe_json_loads(history_value, [])
     history.append(
         {
-            "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data": get_local_timestamp(),
             "autor": actor,
             "akcja": action,
         }
@@ -828,7 +843,7 @@ def approve_password_reset_request(request_id: int, admin_name: str) -> tuple[bo
     users.loc[user_mask, USER_PASSWORD_CHANGE_COLUMN] = True
     save_users(users)
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = get_local_timestamp()
     requests_df.loc[request_mask, "Status"] = "Zatwierdzona"
     requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
     requests_df.loc[request_mask, "Data obslugi"] = now
@@ -859,7 +874,7 @@ def reject_password_reset_request(request_id: int, admin_name: str) -> tuple[boo
     if str(request_row["Status"]) != "Oczekuje":
         return False, "Ta prosba zostala juz obsluzona."
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = get_local_timestamp()
     requests_df.loc[request_mask, "Status"] = "Odrzucona"
     requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
     requests_df.loc[request_mask, "Data obslugi"] = now
@@ -1080,8 +1095,8 @@ else:
 
     reports_source_df = load_reports()
     if not reports_source_df.empty:
-        reports_source_df["Data"] = pd.to_datetime(reports_source_df["Data"], errors="coerce")
-        reports_source_df["Data aktualizacji"] = pd.to_datetime(reports_source_df["Data aktualizacji"], errors="coerce")
+        reports_source_df["Data"] = parse_local_datetime_series(reports_source_df["Data"])
+        reports_source_df["Data aktualizacji"] = parse_local_datetime_series(reports_source_df["Data aktualizacji"])
 
     if is_admin:
         st.markdown("<div class='section-title'><h3>Dashboard administratora</h3></div>", unsafe_allow_html=True)
@@ -1091,7 +1106,7 @@ else:
                 [
                     "To jest test wiadomości wysłanej bezpośrednio z aplikacji.",
                     "",
-                    f"Data testu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    f"Data testu: {get_local_timestamp()}",
                     f"Uruchomił: {st.session_state.user_name}",
                     f"Email administratora: {st.session_state.user_email}",
                 ],
@@ -1229,7 +1244,7 @@ else:
 
     if przycisk:
         if opis:
-            teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            teraz = get_local_timestamp()
             reports_df = load_reports()
             next_id = int(reports_df["ID"].max() + 1) if not reports_df.empty else 1
             history_value = append_history_entry("", st.session_state.user_name, "Utworzono zgłoszenie")
@@ -1488,7 +1503,7 @@ else:
                                 action_label,
                             )
                             reports_df.at[idx, "Komentarz"] = edited_comment.strip()
-                            reports_df.at[idx, "Data aktualizacji"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            reports_df.at[idx, "Data aktualizacji"] = get_local_timestamp()
                             save_reports(reports_df)
                             if previous_status != edited_status:
                                 notify_ok, notify_message = send_status_change_notification(
