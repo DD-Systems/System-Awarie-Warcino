@@ -37,6 +37,7 @@ REPORT_COLUMNS = [
     "ID",
     "Data",
     "Email",
+    "Telefon",
     "Nazwa użytkownika",
     "Opis",
     "Urządzenie",
@@ -1262,10 +1263,12 @@ else:
     opis = ""
     email = st.session_state.user_email
     nazwa_uzytkownika = st.session_state.user_name
+    telefon = ""
     urzadzenie = "Drukarka"
     if not is_admin:
         with st.form("formularz_zgloszenia", clear_on_submit=True):
             st.write("Zgłoszenie zostanie przypisane do Twojego konta automatycznie.")
+            telefon = st.text_input("Telefon kontaktowy (opcjonalnie)", placeholder="np. 600 700 800")
             opis = st.text_area("Opis awarii (np. nie działa drukarka)", height=150)
             urzadzenie = st.selectbox("Urządzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
             przycisk = st.form_submit_button("Wyślij zgłoszenie")
@@ -1277,7 +1280,7 @@ else:
             next_id = int(reports_df["ID"].max() + 1) if not reports_df.empty else 1
             history_value = append_history_entry("", st.session_state.user_name, "Utworzono zgłoszenie")
             nowy_wpis = pd.DataFrame(
-                [[next_id, teraz, email, nazwa_uzytkownika, opis, urzadzenie, "Nowe", "", history_value, "", teraz]],
+                [[next_id, teraz, email, telefon.strip(), nazwa_uzytkownika, opis, urzadzenie, "Nowe", "", history_value, "", teraz]],
                 columns=REPORT_COLUMNS,
             )
             reports_df = pd.concat([reports_df, nowy_wpis], ignore_index=True)
@@ -1359,6 +1362,7 @@ else:
         if search_query:
             search_mask = (
                 filtered_df["Email"].astype(str).str.contains(search_query, case=False, na=False)
+                | filtered_df["Telefon"].astype(str).str.contains(search_query, case=False, na=False)
                 | filtered_df["Nazwa użytkownika"].astype(str).str.contains(search_query, case=False, na=False)
                 | filtered_df["Opis"].astype(str).str.contains(search_query, case=False, na=False)
                 | filtered_df["Komentarz"].astype(str).str.contains(search_query, case=False, na=False)
@@ -1466,27 +1470,33 @@ else:
 
                     with st.form(f"edit_report_form_{selected_id}"):
                         edited_status = st.selectbox(
-                            "Status zgłoszenia",
-                            ["Nowe", "W trakcie", "Zamknięte"],
-                            index=["Nowe", "W trakcie", "Zamknięte"].index(str(selected_report["Status"])),
+                            "Status zg?oszenia",
+                            ["Nowe", "W trakcie", "Zamkni?te"],
+                            index=["Nowe", "W trakcie", "Zamkni?te"].index(str(selected_report["Status"])),
+                        )
+                        phone_default = "" if pd.isna(selected_report["Telefon"]) else str(selected_report["Telefon"] )
+                        edited_phone = st.text_input(
+                            "Telefon kontaktowy (opcjonalnie)",
+                            value=phone_default,
+                            placeholder="np. 600 700 800",
                         )
                         edited_description = st.text_area(
-                            "Opis zgłoszenia",
+                            "Opis zg?oszenia",
                             value=str(selected_report["Opis"]),
                             height=140,
                         )
-                        solution_default = "" if pd.isna(selected_report["Rozwiązanie"]) else str(selected_report["Rozwiązanie"])
+                        solution_default = "" if pd.isna(selected_report["Rozwi?zanie"]) else str(selected_report["Rozwi?zanie"] )
                         edited_solution = st.text_area(
-                            "Rozwiązanie / podsumowanie",
+                            "Rozwi?zanie / podsumowanie",
                             value=solution_default,
                             height=100,
-                            help="Przy zamknięciu zgłoszenia wpisz krótki opis rozwiązania.",
+                            help="Przy zamkni?ciu zg?oszenia wpisz kr?tki opis rozwi?zania.",
                         )
                         edited_comment = st.text_area(
                             "Komentarz / opis dodatkowy",
                             value="" if pd.isna(selected_report["Komentarz"]) else str(selected_report["Komentarz"]),
                             height=120,
-                            help="Tutaj admin lub zgłaszający może dopisać uzupełnienia do zgłoszenia.",
+                            help="Tutaj admin lub zg?aszaj?cy mo?e dopisa? uzupe?nienia do zg?oszenia.",
                         )
                         save_edit_button = st.form_submit_button("Zapisz zmiany")
 
@@ -1509,12 +1519,15 @@ else:
                             else:
                                 idx = report_index[0]
                                 previous_status = str(reports_df.at[idx, "Status"])
+                                previous_phone = str(reports_df.at[idx, "Telefon"])
                                 previous_description = str(reports_df.at[idx, "Opis"])
                                 previous_comment = str(reports_df.at[idx, "Komentarz"])
                                 previous_solution = str(reports_df.at[idx, "Rozwiązanie"])
                                 action_parts = []
                                 if previous_status != edited_status:
                                     action_parts.append(f"Status: {previous_status} -> {edited_status}")
+                                if previous_phone != edited_phone.strip():
+                                    action_parts.append("Zmieniono telefon")
                                 if previous_description != edited_description.strip():
                                     action_parts.append("Zmieniono opis")
                                 if previous_comment != edited_comment.strip():
@@ -1523,6 +1536,7 @@ else:
                                     action_parts.append("Zmieniono rozwiązanie")
                                 action_label = ", ".join(action_parts) if action_parts else "Zapisano bez zmian"
                                 reports_df.at[idx, "Status"] = edited_status
+                                reports_df.at[idx, "Telefon"] = edited_phone.strip()
                                 reports_df.at[idx, "Opis"] = edited_description.strip()
                                 reports_df.at[idx, "Rozwiązanie"] = edited_solution.strip()
                                 reports_df.at[idx, "Historia zmian"] = append_history_entry(
