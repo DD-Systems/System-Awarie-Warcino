@@ -608,7 +608,6 @@ def register_user(email: str, username: str, password: str = "") -> tuple[bool, 
             "",
             f"Email: {email.strip()}",
             f"Nazwa użytkownika: {username.strip()}",
-            f"Powód: {reason.strip() or '-'}",
         ],
     )
     return True, "Hasło tymczasowe zostało wysłane na adres użytkownika. Po zalogowaniu trzeba je zmienić."
@@ -665,7 +664,7 @@ def create_password_reset_request(email: str, username: str, reason: str) -> tup
     return True, "Hasło zostało zmienione. Możesz się teraz zalogować."
 
 
-def submit_password_reset_request(email: str, username: str, reason: str) -> tuple[bool, str]:
+def submit_password_reset_request(email: str, username: str) -> tuple[bool, str]:
     users = load_users()
     if users.empty:
         return False, "Baza uzytkownikow jest pusta."
@@ -705,7 +704,6 @@ def submit_password_reset_request(email: str, username: str, reason: str) -> tup
             "",
             f"Email: {email.strip()}",
             f"Nazwa użytkownika: {username.strip()}",
-            f"Powód: {reason.strip() or '-'}",
         ],
     )
     return True, "Prosba o reset hasla zostala zapisana. Administrator musi ja zatwierdzic."
@@ -925,14 +923,12 @@ if not st.session_state.authenticated:
                     with st.form("reset_password_request_form", clear_on_submit=True):
                         request_email = st.text_input("Email do odzyskania hasla", placeholder="Podaj zarejestrowany adres email")
                         request_username = st.text_input("Nazwa uzytkownika", placeholder="Podaj swoja nazwe uzytkownika")
-                        request_reason = st.text_area("Powod resetu", placeholder="Np. nie pamietam hasla", height=100)
                         request_reset_button = st.form_submit_button("Wyslij prosbe o reset")
 
                     if request_reset_button:
                         success, message = submit_password_reset_request(
                             request_email.strip(),
                             request_username.strip(),
-                            request_reason.strip(),
                         )
                         if success:
                             st.success(message)
