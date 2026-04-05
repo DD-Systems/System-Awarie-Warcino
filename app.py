@@ -921,9 +921,9 @@ if not st.session_state.authenticated:
                 else:
                     st.markdown("<div class='auth-mode-caption'>Zresetuj hasło. System wyśle hasło tymczasowe bezpośrednio na email użytkownika.</div>", unsafe_allow_html=True)
                     with st.form("reset_password_request_form", clear_on_submit=True):
-                        request_email = st.text_input("Email do odzyskania hasla", placeholder="Podaj zarejestrowany adres email")
-                        request_username = st.text_input("Nazwa uzytkownika", placeholder="Podaj swoja nazwe uzytkownika")
-                        request_reset_button = st.form_submit_button("Wyslij prosbe o reset")
+                        request_email = st.text_input("Email do odzyskania hasła", placeholder="Podaj zarejestrowany adres email")
+                        request_username = st.text_input("Nazwa użytkownika", placeholder="Podaj swoją nazwę użytkownika")
+                        request_reset_button = st.form_submit_button("WYŚLIJ")
 
                     if request_reset_button:
                         success, message = submit_password_reset_request(
