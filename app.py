@@ -401,15 +401,27 @@ def format_history(history_value: str) -> str:
     return "\n".join(f"{item['data']} | {item['autor']} | {item['akcja']}" for item in history)
 
 
+def get_secret_value(name: str, default: str = "") -> str:
+    if name in st.secrets:
+        return str(st.secrets[name])
+    return os.getenv(name, default)
+
+
+def get_secret_bool(name: str, default: bool = False) -> bool:
+    raw_value = get_secret_value(name, str(default)).strip().lower()
+    return raw_value in {"1", "true", "yes", "on"}
+
+
 
 
 def send_report_notification(subject: str, body_lines: list[str]) -> tuple[bool, str]:
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    smtp_from = os.getenv("SMTP_FROM") or smtp_user
-    notify_to = os.getenv("REPORT_NOTIFY_TO", NOTIFY_EMAIL)
+    smtp_host = get_secret_value("SMTP_HOST")
+    smtp_port = int(get_secret_value("SMTP_PORT", "587"))
+    smtp_user = get_secret_value("SMTP_USER")
+    smtp_password = get_secret_value("SMTP_PASSWORD")
+    smtp_from = get_secret_value("SMTP_FROM") or smtp_user
+    notify_to = get_secret_value("REPORT_NOTIFY_TO", NOTIFY_EMAIL)
+    smtp_use_ssl = get_secret_bool("SMTP_USE_SSL", smtp_port == 465)
 
     if not all([smtp_host, smtp_user, smtp_password, smtp_from]):
         return False, "Powiadomienie email nie zostało wysłane, bo brakuje konfiguracji SMTP."
@@ -421,8 +433,14 @@ def send_report_notification(subject: str, body_lines: list[str]) -> tuple[bool,
     message.set_content("\n".join(body_lines))
 
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            server.starttls()
+        if smtp_use_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+
+        with server:
+            if not smtp_use_ssl:
+                server.starttls()
             server.login(smtp_user, smtp_password)
             server.send_message(message)
         return True, f"Powiadomienie email zostało wysłane na {notify_to}."
@@ -762,6 +780,21 @@ else:
 
     if is_admin:
         st.markdown("<div class='section-title'><h3>Dashboard administratora</h3></div>", unsafe_allow_html=True)
+        if st.button("Wyślij testowy email", key="send_test_email_button"):
+            test_ok, test_message = send_report_notification(
+                "Test powiadomienia email - Panel zgłoszeniowy awarii",
+                [
+                    "To jest test wiadomości wysłanej bezpośrednio z aplikacji.",
+                    "",
+                    f"Data testu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    f"Uruchomił: {st.session_state.user_name}",
+                    f"Email administratora: {st.session_state.user_email}",
+                ],
+            )
+            if test_ok:
+                st.success(test_message)
+            else:
+                st.error(test_message)
         if reports_source_df.empty:
             st.info("Dashboard będzie dostępny po dodaniu pierwszych zgłoszeń.")
         else:
