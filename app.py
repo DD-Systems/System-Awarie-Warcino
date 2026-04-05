@@ -57,8 +57,7 @@ def get_local_timestamp() -> str:
 
 
 def parse_local_datetime_series(series: pd.Series) -> pd.Series:
-    parsed = pd.to_datetime(series, errors="coerce", utc=True)
-    return parsed.dt.tz_convert(APP_TIMEZONE).dt.tz_localize(None)
+    return pd.to_datetime(series, errors="coerce")
 
 st.markdown(
     "<style>"
