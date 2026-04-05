@@ -1051,25 +1051,6 @@ if not st.session_state.authenticated:
                             else:
                                 st.error(message)
 
-                    st.info("Hasło tymczasowe zostanie wysłane bezpośrednio na email użytkownika.")
-                    st.stop()
-                    st.markdown("<div class='auth-mode-caption'>Ustaw nowe hasło na podstawie zarejestrowanego adresu email.</div>", unsafe_allow_html=True)
-                    with st.form("reset_password_form", clear_on_submit=True):
-                        reset_email = st.text_input("Email do odzyskania hasła", placeholder="Podaj zarejestrowany adres email")
-                        new_password = st.text_input("Nowe hasło", type="password", placeholder="Wpisz nowe hasło")
-                        confirm_new_password = st.text_input("Powtórz nowe hasło", type="password", placeholder="Powtórz nowe hasło")
-                        reset_button = st.form_submit_button("Ustaw nowe hasło")
-
-                    if reset_button:
-                        success, message = reset_password_by_email(
-                            reset_email.strip(),
-                            new_password,
-                            confirm_new_password,
-                        )
-                        if success:
-                            st.success(message)
-                        else:
-                            st.error(message)
 
 else:
     is_admin = is_admin_user(st.session_state.user_role, st.session_state.user_name)
