@@ -1,3 +1,4 @@
-Email,Nazwa użytkownika,Haslo
-hrabia30@gmail.com,lolita,4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2
-admin1@wmc.local,admin1,1c142b2d01aa34e9a36bde480645a57fd69e14155dacfab5a3f9257b77fdc8d8
+Email,Nazwa użytkownika,Haslo,Rola,Wymaga zmiany hasla
+hrabia30@gmail.com,lolita,4813494d137e1631bba301d5acab6e7bb7aa74ce1185d456565ef51d737677b2,Użytkownik,False
+admin1@wmc.local,admin1,1c142b2d01aa34e9a36bde480645a57fd69e14155dacfab5a3f9257b77fdc8d8,Użytkownik,False
+daniel@wmc24.pl,admin,1df03f4abc821131d837be09fa8485b5a0400ad2b853669dbcb2a91e9a0f8205,Administrator,False

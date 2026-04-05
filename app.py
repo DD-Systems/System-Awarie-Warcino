@@ -358,6 +358,24 @@ def update_user_role(email: str, new_role: str) -> tuple[bool, str]:
     return True, "Rola użytkownika została zaktualizowana."
 
 
+def delete_user(email: str) -> tuple[bool, str]:
+    users = load_users()
+    if users.empty:
+        return False, "Brak użytkowników do usunięcia."
+
+    email_lower = email.strip().lower()
+    if email_lower == ADMIN_EMAIL.lower():
+        return False, "Nie można usunąć głównego konta administratora."
+
+    user_mask = users["Email"].astype(str).str.lower() == email_lower
+    if not user_mask.any():
+        return False, "Nie znaleziono użytkownika o wskazanym emailu."
+
+    users = users.loc[~user_mask].copy()
+    save_users(users)
+    return True, "Konto użytkownika zostało usunięte."
+
+
 def safe_json_loads(value: str, default):
     if not value or pd.isna(value):
         return default
@@ -852,7 +870,7 @@ def change_user_password(email: str, new_password: str, confirm_password: str) -
 
 
 def authenticate_user(login: str, password: str) -> tuple[bool, dict]:
-    if login.strip().lower() == "admin" and password == "admin":
+    if login.strip().lower() == "admin" and password == "Zadra747#":
         return True, {"email": ADMIN_EMAIL, "username": "admin", "role": "Administrator", "must_change_password": False}
 
     users = load_users()
@@ -1097,8 +1115,29 @@ else:
                         else:
                             st.error(role_message)
 
-    st.markdown("<div class='section-title'><h3>Nowe zgłoszenie</h3></div>", unsafe_allow_html=True)
-    st.markdown("<div class='section-note'>Dodaj zgłoszenie awarii i przypisz je do właściwej kategorii.</div>", unsafe_allow_html=True)
+                with st.expander("Usuń użytkownika"):
+                    removable_users = users_df[
+                        users_df["Email"].astype(str).str.lower() != ADMIN_EMAIL.lower()
+                    ]["Email"].astype(str).tolist()
+                    if not removable_users:
+                        st.caption("Brak kont do usunięcia.")
+                    else:
+                        with st.form("delete_user_form"):
+                            selected_delete_email = st.selectbox("Konto do usunięcia", removable_users)
+                            delete_user_button = st.form_submit_button("Usuń konto")
+
+                        if delete_user_button:
+                            delete_ok, delete_message = delete_user(selected_delete_email)
+                            if delete_ok:
+                                st.success(delete_message)
+                                st.rerun()
+                            else:
+                                st.error(delete_message)
+
+    if not is_admin:
+        st.markdown("<div class='section-title'><h3>Nowe zgłoszenie</h3></div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-note'>Dodaj zgłoszenie awarii i przypisz je do właściwej kategorii.</div>", unsafe_allow_html=True)
+
     if False and is_admin:
         reset_requests_df = load_reset_requests()
         with st.expander("Prosby o reset hasla"):
@@ -1145,14 +1184,17 @@ else:
                         else:
                             st.error(reject_message)
 
-    with st.form("formularz_zgloszenia", clear_on_submit=True):
-        st.write("Twoje dane użytkownika zostały uzupełnione automatycznie.")
+    przycisk = False
+    opis = ""
+    if not is_admin:
+        with st.form("formularz_zgloszenia", clear_on_submit=True):
+            st.write("Twoje dane u??ytkownika zosta??y uzupe??nione automatycznie.")
 
-        email = st.text_input("Email", value=st.session_state.user_email, disabled=True)
-        nazwa_uzytkownika = st.text_input("Nazwa użytkownika", value=st.session_state.user_name, disabled=True)
-        opis = st.text_area("Opis awarii (np. niedziała drukarka)", height=150)
-        urzadzenie = st.selectbox("Urządzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
-        przycisk = st.form_submit_button("Wyślij zgłoszenie")
+            email = st.text_input("Email", value=st.session_state.user_email, disabled=True)
+            nazwa_uzytkownika = st.text_input("Nazwa u??ytkownika", value=st.session_state.user_name, disabled=True)
+            opis = st.text_area("Opis awarii (np. niedzia??a drukarka)", height=150)
+            urzadzenie = st.selectbox("Urz??dzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
+            przycisk = st.form_submit_button("Wy??lij zg??oszenie")
 
     if przycisk:
         if opis:
