@@ -1468,22 +1468,22 @@ else:
                             placeholder="np. 600 700 800",
                         )
                         edited_description = st.text_area(
-                            "Opis zg?oszenia",
+                            "Opis zgłoszenia",
                             value=str(selected_report["Opis"]),
                             height=140,
                         )
-                        solution_default = "" if pd.isna(selected_report["Rozwi?zanie"]) else str(selected_report["Rozwi?zanie"] )
+                        solution_default = "" if pd.isna(selected_report["Rozwiązanie"]) else str(selected_report["Rozwiązanie"])
                         edited_solution = st.text_area(
-                            "Rozwi?zanie / podsumowanie",
+                            "Rozwiązanie / podsumowanie",
                             value=solution_default,
                             height=100,
-                            help="Przy zamkni?ciu zg?oszenia wpisz kr?tki opis rozwi?zania.",
+                            help="Przy zamknięciu zgłoszenia wpisz krótki opis rozwiązania.",
                         )
                         edited_comment = st.text_area(
                             "Komentarz / opis dodatkowy",
                             value="" if pd.isna(selected_report["Komentarz"]) else str(selected_report["Komentarz"]),
                             height=120,
-                            help="Tutaj admin lub zg?aszaj?cy mo?e dopisa? uzupe?nienia do zg?oszenia.",
+                            help="Tutaj admin lub zgłaszający może dopisać uzupełnienia do zgłoszenia.",
                         )
                         save_edit_button = st.form_submit_button("Zapisz zmiany")
 
