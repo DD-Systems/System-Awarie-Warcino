@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import base64
 import hashlib
 import smtplib
 import json
@@ -8,6 +9,7 @@ import secrets
 import string
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from email.message import EmailMessage
@@ -18,6 +20,7 @@ st.set_page_config(page_title="System Awarii", page_icon="🛠️", layout="wide
 USER_FILE = "uzytkownicy.csv"
 REPORT_FILE = "zgloszenia.csv"
 RESET_REQUEST_FILE = "reset_hasla.csv"
+LOGO_FILE = "logo-wmc-clean.png"
 NOTIFY_EMAIL = "daniel@wmc24.pl"
 ADMIN_EMAIL = "daniel@wmc24.pl"
 APP_TIMEZONE = ZoneInfo("Europe/Warsaw")
@@ -68,6 +71,14 @@ def style_report_status(value: str) -> str:
     if status in {"nowe", "w trakcie"}:
         return "background-color: rgba(198, 40, 40, 0.28); color: #ffe3e3; font-weight: 700;"
     return ""
+
+
+def get_logo_data_uri(path: str) -> str:
+    if not os.path.isfile(path):
+        return ""
+    mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
+    encoded = base64.b64encode(Path(path).read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
 
 st.markdown(
     "<style>"
@@ -221,6 +232,30 @@ st.markdown(
     "  justify-content: space-between;"
     "  gap: 1.2rem;"
     "}"
+    ".forest-hero__lead {"
+    "  display: flex;"
+    "  align-items: center;"
+    "  gap: 1.2rem;"
+    "  min-width: 0;"
+    "}"
+    ".forest-hero__logo-wrap {"
+    "  display: flex;"
+    "  align-items: center;"
+    "  justify-content: center;"
+    "  width: 136px;"
+    "  height: 110px;"
+    "  padding: 0.55rem;"
+    "  border-radius: 1.2rem;"
+    "  background: rgba(255, 248, 234, 0.04);"
+    "  border: 1px solid rgba(231, 209, 155, 0.1);"
+    "  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);"
+    "}"
+    ".forest-hero__logo {"
+    "  max-width: 100%;"
+    "  max-height: 100%;"
+    "  object-fit: contain;"
+    "  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.18));"
+    "}"
     ".forest-hero__content { flex: 1; min-width: 0; }"
     ".forest-hero__eyebrow {"
     "  text-transform: uppercase;"
@@ -328,6 +363,7 @@ st.markdown(
     "}"
     "@media (max-width: 900px) {"
     "  .forest-hero__top { flex-direction: column; }"
+    "  .forest-hero__lead { width: 100%; }"
     "  .forest-greeting { align-items: flex-start; text-align: left; min-width: 0; }"
     "  .forest-greeting__line { background: linear-gradient(90deg, rgba(231, 209, 155, 0.9), rgba(231, 209, 155, 0)); }"
     "}"
@@ -335,12 +371,22 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+logo_data_uri = get_logo_data_uri(LOGO_FILE)
+logo_html = (
+    f"<div class='forest-hero__logo-wrap'><img src='{logo_data_uri}' alt='Logo' class='forest-hero__logo'></div>"
+    if logo_data_uri
+    else ""
+)
+
 st.markdown(
     "<div class='forest-hero'>"
     "<div class='forest-hero__top'>"
+    "<div class='forest-hero__lead'>"
+    f"{logo_html}"
     "<div class='forest-hero__content'>"
     "<div class='forest-hero__eyebrow'>Panel wewnętrzny • obsługa usterek</div>"
     "<h1 class='forest-hero__title'>Panel zgłoszeniowy awarii</h1>"
+    "</div>"
     "</div>"
     "<div class='forest-greeting'>"
     "<div class='forest-greeting__text'>Darz Bór</div>"
