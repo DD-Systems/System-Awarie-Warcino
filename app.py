@@ -156,6 +156,26 @@ st.markdown(
     "  overflow: hidden;"
     "  box-shadow: 0 18px 42px rgba(45, 59, 40, 0.06);"
     "}"
+    "[data-testid='stDataFrame'] * {"
+    "  scrollbar-width: auto;"
+    "  scrollbar-color: #567654 rgba(36, 52, 39, 0.16);"
+    "}"
+    "[data-testid='stDataFrame'] ::-webkit-scrollbar {"
+    "  height: 14px;"
+    "  width: 14px;"
+    "}"
+    "[data-testid='stDataFrame'] ::-webkit-scrollbar-track {"
+    "  background: rgba(36, 52, 39, 0.12);"
+    "  border-radius: 999px;"
+    "}"
+    "[data-testid='stDataFrame'] ::-webkit-scrollbar-thumb {"
+    "  background: linear-gradient(90deg, #31553a 0%, #5f835d 100%);"
+    "  border-radius: 999px;"
+    "  border: 2px solid rgba(247, 241, 230, 0.9);"
+    "}"
+    "[data-testid='stDataFrame'] ::-webkit-scrollbar-thumb:hover {"
+    "  background: linear-gradient(90deg, #24412c 0%, #4b6f4e 100%);"
+    "}"
     " #MainMenu {visibility: hidden;}"
     " footer {visibility: hidden;}"
     " header {visibility: hidden;}"
@@ -1312,6 +1332,10 @@ else:
 
         st.caption(f"Wyświetlane zgłoszenia: {len(filtered_df)} z {total_reports}")
 
+        edit_success_message = st.session_state.pop("report_edit_success", None)
+        if edit_success_message:
+            st.success(edit_success_message)
+
         display_df = filtered_df.copy()
         display_df["Data"] = display_df["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Data aktualizacji"] = display_df["Data aktualizacji"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
@@ -1476,7 +1500,7 @@ else:
                                     st.info(notify_message)
                                 else:
                                     st.warning(notify_message)
-                            st.success("Zmiany w zgłoszeniu zostały zapisane.")
+                            st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane."
                             st.rerun()
     else:
         st.info("Baza danych jest pusta. Dodaj pierwsze zgłoszenie.")
