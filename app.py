@@ -1265,10 +1265,10 @@ else:
     urzadzenie = "Drukarka"
     if not is_admin:
         with st.form("formularz_zgloszenia", clear_on_submit=True):
-            st.write("Zg?oszenie zostanie przypisane do Twojego konta automatycznie.")
-            opis = st.text_area("Opis awarii (np. nie dzia?a drukarka)", height=150)
-            urzadzenie = st.selectbox("Urz?dzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
-            przycisk = st.form_submit_button("Wy?lij zg?oszenie")
+            st.write("Zgłoszenie zostanie przypisane do Twojego konta automatycznie.")
+            opis = st.text_area("Opis awarii (np. nie działa drukarka)", height=150)
+            urzadzenie = st.selectbox("Urządzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
+            przycisk = st.form_submit_button("Wyślij zgłoszenie")
 
     if przycisk:
         if opis:
