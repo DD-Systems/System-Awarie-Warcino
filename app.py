@@ -1168,9 +1168,7 @@ else:
             save_reports(reports_df)
             st.success("✅ Zgłoszenie zostało zapisane pomyślnie!")
             notification_ok, notification_message = send_new_report_notification(nowy_wpis.iloc[0].to_dict())
-            if notification_ok:
-                st.info(notification_message)
-            else:
+            if not notification_ok:
                 st.warning(notification_message)
         else:
             st.error("⚠️ Musisz podać opis awarii!")
