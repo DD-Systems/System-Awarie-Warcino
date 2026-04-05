@@ -305,6 +305,26 @@ st.markdown(
     "  color: var(--muted);"
     "  margin: 0 0 0.85rem 0;"
     "}"
+    "[data-testid='stExpander'] {"
+    "  border: 1px solid rgba(183, 138, 52, 0.16) !important;"
+    "  border-radius: 1rem !important;"
+    "  background: rgba(255, 251, 244, 0.72) !important;"
+    "}"
+    "[data-testid='stExpander'] summary {"
+    "  color: var(--forest-deep) !important;"
+    "  font-weight: 700 !important;"
+    "}"
+    ".report-history {"
+    "  background: #fbf8f1;"
+    "  color: #2b3f31;"
+    "  border: 1px solid rgba(47, 90, 60, 0.14);"
+    "  border-radius: 0.9rem;"
+    "  padding: 0.95rem 1rem;"
+    "  line-height: 1.7;"
+    "  white-space: pre-wrap;"
+    "  font-family: Consolas, 'Courier New', monospace;"
+    "  font-size: 0.95rem;"
+    "}"
     "@media (max-width: 900px) {"
     "  .forest-hero__top { flex-direction: column; }"
     "  .forest-greeting { align-items: flex-start; text-align: left; min-width: 0; }"
@@ -1417,110 +1437,114 @@ else:
         if filtered_df.empty:
             st.info("Brak zgłoszeń pasujących do wybranych filtrów.")
         else:
-            st.markdown("### Edycja zgłoszenia")
-            st.caption("Edytować zgłoszenie może tylko jego autor albo administrator.")
-            editable_reports = df[
-                (df["Email"].astype(str).str.lower() == st.session_state.user_email.lower())
-                | (df["Nazwa użytkownika"].astype(str).str.lower() == st.session_state.user_name.lower())
-            ].copy()
+            with st.container(border=True):
+                st.markdown("### Edycja zgłoszenia")
+                st.caption("Edytować zgłoszenie może tylko jego autor albo administrator.")
+                editable_reports = df[
+                    (df["Email"].astype(str).str.lower() == st.session_state.user_email.lower())
+                    | (df["Nazwa użytkownika"].astype(str).str.lower() == st.session_state.user_name.lower())
+                ].copy()
 
-            if is_staff:
-                editable_reports = df.copy()
+                if is_staff:
+                    editable_reports = df.copy()
 
-            if editable_reports.empty:
-                st.info("Nie masz uprawnień do edycji zgłoszeń z aktualnie wyświetlanej listy.")
-            else:
-                edit_options = {
-                    f"#{int(row['ID'])} | {row['Urządzenie']} | {row['Nazwa użytkownika']} | "
-                    f"{row['Data'].strftime('%Y-%m-%d %H:%M') if pd.notna(row['Data']) else 'brak daty'}": int(row["ID"])
-                    for _, row in editable_reports.iterrows()
-                }
-                selected_label = st.selectbox(
-                    "Wybierz zgłoszenie do edycji",
-                    list(edit_options.keys()),
-                    key="edit_report_select",
-                )
-                selected_id = edit_options[selected_label]
-                selected_report = editable_reports[editable_reports["ID"] == selected_id].iloc[0]
-
-                with st.form(f"edit_report_form_{selected_id}"):
-                    edited_status = st.selectbox(
-                        "Status zgłoszenia",
-                        ["Nowe", "W trakcie", "Zamknięte"],
-                        index=["Nowe", "W trakcie", "Zamknięte"].index(str(selected_report["Status"])),
+                if editable_reports.empty:
+                    st.info("Nie masz uprawnień do edycji zgłoszeń z aktualnie wyświetlanej listy.")
+                else:
+                    edit_options = {
+                        f"#{int(row['ID'])} | {row['Urządzenie']} | {row['Nazwa użytkownika']} | "
+                        f"{row['Data'].strftime('%Y-%m-%d %H:%M') if pd.notna(row['Data']) else 'brak daty'}": int(row["ID"])
+                        for _, row in editable_reports.iterrows()
+                    }
+                    selected_label = st.selectbox(
+                        "Wybierz zgłoszenie do edycji",
+                        list(edit_options.keys()),
+                        key="edit_report_select",
                     )
-                    edited_description = st.text_area(
-                        "Opis zgłoszenia",
-                        value=str(selected_report["Opis"]),
-                        height=140,
-                    )
-                    solution_default = "" if pd.isna(selected_report["Rozwiązanie"]) else str(selected_report["Rozwiązanie"])
-                    edited_solution = st.text_area(
-                        "Rozwiązanie / podsumowanie",
-                        value=solution_default,
-                        height=100,
-                        help="Przy zamknięciu zgłoszenia wpisz krótki opis rozwiązania.",
-                    )
-                    edited_comment = st.text_area(
-                        "Komentarz / opis dodatkowy",
-                        value="" if pd.isna(selected_report["Komentarz"]) else str(selected_report["Komentarz"]),
-                        height=120,
-                        help="Tutaj admin lub zgłaszający może dopisać uzupełnienia do zgłoszenia.",
-                    )
-                    save_edit_button = st.form_submit_button("Zapisz zmiany")
+                    selected_id = edit_options[selected_label]
+                    selected_report = editable_reports[editable_reports["ID"] == selected_id].iloc[0]
 
-                with st.expander("Historia zmian"):
-                    st.text(format_history(selected_report["Historia zmian"]))
+                    with st.form(f"edit_report_form_{selected_id}"):
+                        edited_status = st.selectbox(
+                            "Status zgłoszenia",
+                            ["Nowe", "W trakcie", "Zamknięte"],
+                            index=["Nowe", "W trakcie", "Zamknięte"].index(str(selected_report["Status"])),
+                        )
+                        edited_description = st.text_area(
+                            "Opis zgłoszenia",
+                            value=str(selected_report["Opis"]),
+                            height=140,
+                        )
+                        solution_default = "" if pd.isna(selected_report["Rozwiązanie"]) else str(selected_report["Rozwiązanie"])
+                        edited_solution = st.text_area(
+                            "Rozwiązanie / podsumowanie",
+                            value=solution_default,
+                            height=100,
+                            help="Przy zamknięciu zgłoszenia wpisz krótki opis rozwiązania.",
+                        )
+                        edited_comment = st.text_area(
+                            "Komentarz / opis dodatkowy",
+                            value="" if pd.isna(selected_report["Komentarz"]) else str(selected_report["Komentarz"]),
+                            height=120,
+                            help="Tutaj admin lub zgłaszający może dopisać uzupełnienia do zgłoszenia.",
+                        )
+                        save_edit_button = st.form_submit_button("Zapisz zmiany")
 
-                if save_edit_button:
-                    if not edited_description.strip():
-                        st.error("Opis zgłoszenia nie może być pusty.")
-                    elif edited_status == "Zamknięte" and not edited_solution.strip():
-                        st.error("Przy zamykaniu zgłoszenia podaj rozwiązanie.")
-                    else:
-                        reports_df = load_reports()
-                        report_index = reports_df.index[reports_df["ID"] == selected_id]
-                        if len(report_index) == 0:
-                            st.error("Nie udało się odnaleźć wskazanego zgłoszenia.")
+                    with st.expander("Historia zmian"):
+                        st.markdown(
+                            f"<div class='report-history'>{format_history(selected_report['Historia zmian'])}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                    if save_edit_button:
+                        if not edited_description.strip():
+                            st.error("Opis zgłoszenia nie może być pusty.")
+                        elif edited_status == "Zamknięte" and not edited_solution.strip():
+                            st.error("Przy zamykaniu zgłoszenia podaj rozwiązanie.")
                         else:
-                            idx = report_index[0]
-                            previous_status = str(reports_df.at[idx, "Status"])
-                            previous_description = str(reports_df.at[idx, "Opis"])
-                            previous_comment = str(reports_df.at[idx, "Komentarz"])
-                            previous_solution = str(reports_df.at[idx, "Rozwiązanie"])
-                            action_parts = []
-                            if previous_status != edited_status:
-                                action_parts.append(f"Status: {previous_status} -> {edited_status}")
-                            if previous_description != edited_description.strip():
-                                action_parts.append("Zmieniono opis")
-                            if previous_comment != edited_comment.strip():
-                                action_parts.append("Zmieniono komentarz")
-                            if previous_solution != edited_solution.strip():
-                                action_parts.append("Zmieniono rozwiązanie")
-                            action_label = ", ".join(action_parts) if action_parts else "Zapisano bez zmian"
-                            reports_df.at[idx, "Status"] = edited_status
-                            reports_df.at[idx, "Opis"] = edited_description.strip()
-                            reports_df.at[idx, "Rozwiązanie"] = edited_solution.strip()
-                            reports_df.at[idx, "Historia zmian"] = append_history_entry(
-                                reports_df.at[idx, "Historia zmian"],
-                                st.session_state.user_name,
-                                action_label,
-                            )
-                            reports_df.at[idx, "Komentarz"] = edited_comment.strip()
-                            reports_df.at[idx, "Data aktualizacji"] = get_local_timestamp()
-                            save_reports(reports_df)
-                            if previous_status != edited_status:
-                                notify_ok, notify_message = send_status_change_notification(
-                                    reports_df.iloc[idx].to_dict(),
-                                    previous_status,
+                            reports_df = load_reports()
+                            report_index = reports_df.index[reports_df["ID"] == selected_id]
+                            if len(report_index) == 0:
+                                st.error("Nie udało się odnaleźć wskazanego zgłoszenia.")
+                            else:
+                                idx = report_index[0]
+                                previous_status = str(reports_df.at[idx, "Status"])
+                                previous_description = str(reports_df.at[idx, "Opis"])
+                                previous_comment = str(reports_df.at[idx, "Komentarz"])
+                                previous_solution = str(reports_df.at[idx, "Rozwiązanie"])
+                                action_parts = []
+                                if previous_status != edited_status:
+                                    action_parts.append(f"Status: {previous_status} -> {edited_status}")
+                                if previous_description != edited_description.strip():
+                                    action_parts.append("Zmieniono opis")
+                                if previous_comment != edited_comment.strip():
+                                    action_parts.append("Zmieniono komentarz")
+                                if previous_solution != edited_solution.strip():
+                                    action_parts.append("Zmieniono rozwiązanie")
+                                action_label = ", ".join(action_parts) if action_parts else "Zapisano bez zmian"
+                                reports_df.at[idx, "Status"] = edited_status
+                                reports_df.at[idx, "Opis"] = edited_description.strip()
+                                reports_df.at[idx, "Rozwiązanie"] = edited_solution.strip()
+                                reports_df.at[idx, "Historia zmian"] = append_history_entry(
+                                    reports_df.at[idx, "Historia zmian"],
                                     st.session_state.user_name,
+                                    action_label,
                                 )
-                                if notify_ok:
-                                    st.info(notify_message)
-                                else:
-                                    st.warning(notify_message)
-                            st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane."
-                            st.rerun()
+                                reports_df.at[idx, "Komentarz"] = edited_comment.strip()
+                                reports_df.at[idx, "Data aktualizacji"] = get_local_timestamp()
+                                save_reports(reports_df)
+                                if previous_status != edited_status:
+                                    notify_ok, notify_message = send_status_change_notification(
+                                        reports_df.iloc[idx].to_dict(),
+                                        previous_status,
+                                        st.session_state.user_name,
+                                    )
+                                    if notify_ok:
+                                        st.info(notify_message)
+                                    else:
+                                        st.warning(notify_message)
+                                st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane."
+                                st.rerun()
     else:
         st.info("Baza danych jest pusta. Dodaj pierwsze zgłoszenie.")
 
