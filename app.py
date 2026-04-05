@@ -939,7 +939,7 @@ if not st.session_state.authenticated:
                         else:
                             st.error(message)
 
-                    st.info("Hasło tymczasowe zostanie wysłane bezpośrednio na email użytkownika, a administrator dostanie tylko powiadomienie.")
+                    st.info("Hasło tymczasowe zostanie wysłane bezpośrednio na email użytkownika.")
                     st.stop()
                     st.markdown("<div class='auth-mode-caption'>Ustaw nowe hasło na podstawie zarejestrowanego adresu email.</div>", unsafe_allow_html=True)
                     with st.form("reset_password_form", clear_on_submit=True):
