@@ -970,7 +970,7 @@ if "authenticated" not in st.session_state:
 
 # --- LOGOWANIE I REJESTRACJA ---
 if not st.session_state.authenticated:
-    spacer_left, auth_col, spacer_right = st.columns([1, 14, 1])
+    spacer_left, auth_col, spacer_right = st.columns([0.7, 14.3, 1.2])
     with auth_col:
         st.markdown("<div class='section-title'><h3>Logowanie i rejestracja</h3></div>", unsafe_allow_html=True)
 
