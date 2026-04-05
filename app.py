@@ -1363,8 +1363,19 @@ else:
         display_df["Data"] = display_df["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Data aktualizacji"] = display_df["Data aktualizacji"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Historia zmian"] = display_df["Historia zmian"].apply(lambda value: len(safe_json_loads(value, [])))
-        display_df.index = range(1, len(display_df) + 1)
-        styled_display_df = display_df.style.map(style_report_status, subset=["Status"])
+        compact_display_df = display_df[
+            [
+                "ID",
+                "Data",
+                "Nazwa użytkownika",
+                "Opis",
+                "Urządzenie",
+                "Status",
+                "Data aktualizacji",
+            ]
+        ].copy()
+        compact_display_df.index = range(1, len(compact_display_df) + 1)
+        styled_display_df = compact_display_df.style.map(style_report_status, subset=["Status"])
         st.dataframe(
             styled_display_df,
             use_container_width=True,
@@ -1377,46 +1388,30 @@ else:
                     "Data",
                     width="medium",
                 ),
-                "Email": st.column_config.TextColumn(
-                    "Email",
-                    width="medium",
-                ),
                 "Nazwa użytkownika": st.column_config.TextColumn(
-                    "Nazwa użytkownika",
+                    "Użytkownik",
                     width="medium",
                 ),
                 "Status": st.column_config.TextColumn(
                     "Status",
                     width="small",
                 ),
-                "Rozwiązanie": st.column_config.TextColumn(
-                    "Rozwiązanie",
-                    width="medium",
-                ),
-                "Historia zmian": st.column_config.NumberColumn(
-                    "Historia",
-                    width="small",
-                ),
-                "Komentarz": st.column_config.TextColumn(
-                    "Komentarz",
-                    width="medium",
-                    help="Szersza kolumna dla dłuższych komentarzy do zgłoszeń.",
-                ),
                 "Opis": st.column_config.TextColumn(
                     "Opis",
-                    width="medium",
+                    width="large",
                 ),
                 "Urządzenie": st.column_config.TextColumn(
                     "Urządzenie",
                     width="small",
                 ),
                 "Data aktualizacji": st.column_config.TextColumn(
-                    "Data aktualizacji",
+                    "Aktualizacja",
                     width="medium",
                 ),
             },
             height=420,
         )
+        st.caption("Główny widok pokazuje najważniejsze informacje. Rozwiązanie, komentarze i historia zmian są dostępne w sekcji edycji zgłoszenia.")
         st.caption("Cały rejestr jest widoczny dla wszystkich zalogowanych użytkowników.")
 
         if filtered_df.empty:
