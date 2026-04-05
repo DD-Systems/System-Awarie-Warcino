@@ -602,6 +602,18 @@ def register_user(email: str, username: str, password: str = "") -> tuple[bool, 
     users = pd.concat([users, pd.DataFrame([new_user_row])], ignore_index=True)
     save_users(users)
     send_admin_account_notification(
+        "Reset hasła użytkownika",
+        [
+            "Użytkownik zresetował hasło i otrzymał hasło tymczasowe na swój email.",
+            "",
+            f"Email: {email.strip()}",
+            f"Nazwa użytkownika: {username.strip()}",
+            f"Powód: {reason.strip() or '-'}",
+        ],
+    )
+    return True, "Hasło tymczasowe zostało wysłane na adres użytkownika. Po zalogowaniu trzeba je zmienić."
+
+    send_admin_account_notification(
         "Nowe konto w panelu awarii",
         [
             "Utworzono nowe konto użytkownika.",
@@ -673,22 +685,19 @@ def submit_password_reset_request(email: str, username: str, reason: str) -> tup
     if not user_mask.any():
         return False, "Nie znaleziono konta z takim emailem i nazwa uzytkownika."
 
-    requests_df = load_reset_requests()
-    pending_mask = (
-        (requests_df["Email"].astype(str).str.lower() == email_lower)
-        & (requests_df["Status"].astype(str) == "Oczekuje")
+    temporary_password = generate_temporary_password()
+    email_ok, email_message = send_temporary_password_email(
+        email.strip(),
+        username.strip(),
+        temporary_password,
+        "Reset hasła",
     )
-    if pending_mask.any():
-        return False, "Dla tego konta jest juz aktywna prosba o reset hasla."
+    if not email_ok:
+        return False, email_message
 
-    next_id = int(pd.to_numeric(requests_df["ID"], errors="coerce").max() + 1) if not requests_df.empty else 1
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_request = pd.DataFrame(
-        [[next_id, now, email.strip(), username.strip(), reason.strip(), "Oczekuje", "", ""]],
-        columns=RESET_REQUEST_COLUMNS,
-    )
-    requests_df = pd.concat([requests_df, new_request], ignore_index=True)
-    save_reset_requests(requests_df)
+    users.loc[user_mask, "Haslo"] = hash_password(temporary_password)
+    users.loc[user_mask, USER_PASSWORD_CHANGE_COLUMN] = True
+    save_users(users)
     send_admin_account_notification(
         "Nowa prośba o reset hasła",
         [
@@ -912,7 +921,7 @@ if not st.session_state.authenticated:
                             else:
                                 st.error(message)
                 else:
-                    st.markdown("<div class='auth-mode-caption'>Zloz prosbe o reset hasla. Administrator zatwierdzi ja w panelu.</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='auth-mode-caption'>Zresetuj hasło. System wyśle hasło tymczasowe bezpośrednio na email użytkownika.</div>", unsafe_allow_html=True)
                     with st.form("reset_password_request_form", clear_on_submit=True):
                         request_email = st.text_input("Email do odzyskania hasla", placeholder="Podaj zarejestrowany adres email")
                         request_username = st.text_input("Nazwa uzytkownika", placeholder="Podaj swoja nazwe uzytkownika")
@@ -930,7 +939,7 @@ if not st.session_state.authenticated:
                         else:
                             st.error(message)
 
-                    st.info("Haslo nie jest zmieniane automatycznie. Administrator musi obsluzyc prosbe w panelu.")
+                    st.info("Hasło tymczasowe zostanie wysłane bezpośrednio na email użytkownika, a administrator dostanie tylko powiadomienie.")
                     st.stop()
                     st.markdown("<div class='auth-mode-caption'>Ustaw nowe hasło na podstawie zarejestrowanego adresu email.</div>", unsafe_allow_html=True)
                     with st.form("reset_password_form", clear_on_submit=True):
@@ -1045,7 +1054,7 @@ else:
 
     st.markdown("<div class='section-title'><h3>Nowe zgłoszenie</h3></div>", unsafe_allow_html=True)
     st.markdown("<div class='section-note'>Dodaj zgłoszenie awarii i przypisz je do właściwej kategorii.</div>", unsafe_allow_html=True)
-    if is_admin:
+    if False and is_admin:
         reset_requests_df = load_reset_requests()
         with st.expander("Prosby o reset hasla"):
             if reset_requests_df.empty:
