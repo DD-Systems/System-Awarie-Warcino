@@ -59,6 +59,15 @@ def get_local_timestamp() -> str:
 def parse_local_datetime_series(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce")
 
+
+def style_report_status(value: str) -> str:
+    status = str(value).strip().lower()
+    if status == "zamknięte":
+        return "background-color: rgba(46, 125, 50, 0.28); color: #d8f3dc; font-weight: 700;"
+    if status in {"nowe", "w trakcie"}:
+        return "background-color: rgba(198, 40, 40, 0.28); color: #ffe3e3; font-weight: 700;"
+    return ""
+
 st.markdown(
     "<style>"
     ":root {"
@@ -1355,8 +1364,9 @@ else:
         display_df["Data aktualizacji"] = display_df["Data aktualizacji"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Historia zmian"] = display_df["Historia zmian"].apply(lambda value: len(safe_json_loads(value, [])))
         display_df.index = range(1, len(display_df) + 1)
+        styled_display_df = display_df.style.map(style_report_status, subset=["Status"])
         st.dataframe(
-            display_df,
+            styled_display_df,
             use_container_width=True,
             column_config={
                 "ID": st.column_config.NumberColumn(
