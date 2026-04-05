@@ -12,8 +12,19 @@ st.set_page_config(page_title="System Awarii", page_icon="🛠️", layout="wide
 
 USER_FILE = "uzytkownicy.csv"
 REPORT_FILE = "zgloszenia.csv"
+RESET_REQUEST_FILE = "reset_hasla.csv"
 NOTIFY_EMAIL = "daniel@wmc24.pl"
 USER_COLUMNS = ["Email", "Nazwa użytkownika", "Haslo", "Rola"]
+RESET_REQUEST_COLUMNS = [
+    "ID",
+    "Data",
+    "Email",
+    "Nazwa użytkownika",
+    "Powod",
+    "Status",
+    "Obsluzone przez",
+    "Data obslugi",
+]
 REPORT_COLUMNS = [
     "ID",
     "Data",
@@ -294,6 +305,24 @@ def save_users(df: pd.DataFrame) -> None:
     df.to_csv(USER_FILE, index=False)
 
 
+def load_reset_requests() -> pd.DataFrame:
+    if os.path.isfile(RESET_REQUEST_FILE):
+        df = pd.read_csv(RESET_REQUEST_FILE)
+        for column in RESET_REQUEST_COLUMNS:
+            if column not in df.columns:
+                df[column] = ""
+        df = df[RESET_REQUEST_COLUMNS].copy()
+        df["Status"] = df["Status"].replace("", pd.NA).fillna("Oczekuje")
+        df["Powod"] = df["Powod"].fillna("")
+        return df
+    return pd.DataFrame(columns=RESET_REQUEST_COLUMNS)
+
+
+def save_reset_requests(df: pd.DataFrame) -> None:
+    df = df.copy()[RESET_REQUEST_COLUMNS]
+    df.to_csv(RESET_REQUEST_FILE, index=False)
+
+
 def update_user_role(email: str, new_role: str) -> tuple[bool, str]:
     users = load_users()
     if users.empty:
@@ -463,7 +492,7 @@ def register_user(email: str, username: str, password: str) -> tuple[bool, str]:
     return True, "Rejestracja zakończona sukcesem. Teraz możesz się zalogować."
 
 
-def reset_password_by_email(email: str, new_password: str, confirm_password: str) -> tuple[bool, str]:
+def create_password_reset_request(email: str, username: str, reason: str) -> tuple[bool, str]:
     users = load_users()
     if users.empty:
         return False, "Baza użytkowników jest pusta."
@@ -475,6 +504,9 @@ def reset_password_by_email(email: str, new_password: str, confirm_password: str
         return False, "Nowe hasła muszą być identyczne."
 
     email_lower = email.strip().lower()
+    if not email_lower.endswith("@tlwarcino.pl"):
+        return False, "Reset hasĹ‚a jest dostÄ™pny tylko dla zarejestrowanych adresĂłw email w domenie tlwarcino.pl."
+
     user_mask = users["Email"].astype(str).str.lower() == email_lower
     if not user_mask.any():
         return False, "Nie znaleziono użytkownika z takim adresem email."
@@ -482,6 +514,98 @@ def reset_password_by_email(email: str, new_password: str, confirm_password: str
     users.loc[user_mask, "Haslo"] = hash_password(new_password)
     save_users(users)
     return True, "Hasło zostało zmienione. Możesz się teraz zalogować."
+
+
+def submit_password_reset_request(email: str, username: str, reason: str) -> tuple[bool, str]:
+    users = load_users()
+    if users.empty:
+        return False, "Baza uzytkownikow jest pusta."
+
+    if not email.strip() or not username.strip():
+        return False, "Podaj email oraz nazwe uzytkownika."
+
+    email_lower = email.strip().lower()
+    username_lower = username.strip().lower()
+    if not email_lower.endswith("@tlwarcino.pl"):
+        return False, "Reset hasla jest dostepny tylko dla adresow email w domenie tlwarcino.pl."
+
+    user_mask = (
+        (users["Email"].astype(str).str.lower() == email_lower)
+        & (users["Nazwa użytkownika"].astype(str).str.lower() == username_lower)
+    )
+    if not user_mask.any():
+        return False, "Nie znaleziono konta z takim emailem i nazwa uzytkownika."
+
+    requests_df = load_reset_requests()
+    pending_mask = (
+        (requests_df["Email"].astype(str).str.lower() == email_lower)
+        & (requests_df["Status"].astype(str) == "Oczekuje")
+    )
+    if pending_mask.any():
+        return False, "Dla tego konta jest juz aktywna prosba o reset hasla."
+
+    next_id = int(pd.to_numeric(requests_df["ID"], errors="coerce").max() + 1) if not requests_df.empty else 1
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_request = pd.DataFrame(
+        [[next_id, now, email.strip(), username.strip(), reason.strip(), "Oczekuje", "", ""]],
+        columns=RESET_REQUEST_COLUMNS,
+    )
+    requests_df = pd.concat([requests_df, new_request], ignore_index=True)
+    save_reset_requests(requests_df)
+    return True, "Prosba o reset hasla zostala zapisana. Administrator musi ja zatwierdzic."
+
+
+def approve_password_reset_request(request_id: int, new_password: str, admin_name: str) -> tuple[bool, str]:
+    requests_df = load_reset_requests()
+    if requests_df.empty:
+        return False, "Brak prosb o reset hasla."
+
+    if not str(new_password).strip():
+        return False, "Podaj nowe haslo dla wskazanego konta."
+
+    request_mask = pd.to_numeric(requests_df["ID"], errors="coerce") == int(request_id)
+    if not request_mask.any():
+        return False, "Nie znaleziono wskazanej prosby."
+
+    request_row = requests_df.loc[request_mask].iloc[0]
+    if str(request_row["Status"]) != "Oczekuje":
+        return False, "Ta prosba zostala juz obsluzona."
+
+    users = load_users()
+    user_mask = users["Email"].astype(str).str.lower() == str(request_row["Email"]).strip().lower()
+    if not user_mask.any():
+        return False, "Nie znaleziono uzytkownika powiazanego z ta prosba."
+
+    users.loc[user_mask, "Haslo"] = hash_password(new_password)
+    save_users(users)
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    requests_df.loc[request_mask, "Status"] = "Zatwierdzona"
+    requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
+    requests_df.loc[request_mask, "Data obslugi"] = now
+    save_reset_requests(requests_df)
+    return True, "Haslo zostalo zresetowane. Przekaz nowe haslo uzytkownikowi bezpiecznym kanalem."
+
+
+def reject_password_reset_request(request_id: int, admin_name: str) -> tuple[bool, str]:
+    requests_df = load_reset_requests()
+    if requests_df.empty:
+        return False, "Brak prosb o reset hasla."
+
+    request_mask = pd.to_numeric(requests_df["ID"], errors="coerce") == int(request_id)
+    if not request_mask.any():
+        return False, "Nie znaleziono wskazanej prosby."
+
+    request_row = requests_df.loc[request_mask].iloc[0]
+    if str(request_row["Status"]) != "Oczekuje":
+        return False, "Ta prosba zostala juz obsluzona."
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    requests_df.loc[request_mask, "Status"] = "Odrzucona"
+    requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
+    requests_df.loc[request_mask, "Data obslugi"] = now
+    save_reset_requests(requests_df)
+    return True, "Prosba o reset hasla zostala odrzucona."
 
 
 def authenticate_user(login: str, password: str) -> tuple[bool, dict]:
@@ -579,6 +703,26 @@ if not st.session_state.authenticated:
                             else:
                                 st.error(message)
                 else:
+                    st.markdown("<div class='auth-mode-caption'>Zloz prosbe o reset hasla. Administrator zatwierdzi ja w panelu.</div>", unsafe_allow_html=True)
+                    with st.form("reset_password_request_form", clear_on_submit=True):
+                        request_email = st.text_input("Email do odzyskania hasla", placeholder="Podaj zarejestrowany adres email")
+                        request_username = st.text_input("Nazwa uzytkownika", placeholder="Podaj swoja nazwe uzytkownika")
+                        request_reason = st.text_area("Powod resetu", placeholder="Np. nie pamietam hasla", height=100)
+                        request_reset_button = st.form_submit_button("Wyslij prosbe o reset")
+
+                    if request_reset_button:
+                        success, message = submit_password_reset_request(
+                            request_email.strip(),
+                            request_username.strip(),
+                            request_reason.strip(),
+                        )
+                        if success:
+                            st.success(message)
+                        else:
+                            st.error(message)
+
+                    st.info("Haslo nie jest zmieniane automatycznie. Administrator musi obsluzyc prosbe w panelu.")
+                    st.stop()
                     st.markdown("<div class='auth-mode-caption'>Ustaw nowe hasło na podstawie zarejestrowanego adresu email.</div>", unsafe_allow_html=True)
                     with st.form("reset_password_form", clear_on_submit=True):
                         reset_email = st.text_input("Email do odzyskania hasła", placeholder="Podaj zarejestrowany adres email")
@@ -655,6 +799,57 @@ else:
 
     st.markdown("<div class='section-title'><h3>Nowe zgłoszenie</h3></div>", unsafe_allow_html=True)
     st.markdown("<div class='section-note'>Dodaj zgłoszenie awarii i przypisz je do właściwej kategorii.</div>", unsafe_allow_html=True)
+    if is_admin:
+        reset_requests_df = load_reset_requests()
+        with st.expander("Prosby o reset hasla"):
+            if reset_requests_df.empty:
+                st.info("Brak prosb o reset hasla.")
+            else:
+                st.dataframe(reset_requests_df, use_container_width=True, hide_index=True)
+                pending_requests = reset_requests_df[reset_requests_df["Status"].astype(str) == "Oczekuje"].copy()
+                if pending_requests.empty:
+                    st.caption("Brak oczekujacych prosb.")
+                else:
+                    pending_requests["request_label"] = pending_requests.apply(
+                        lambda row: f"#{int(row['ID'])} | {row['Email']} | {row['Nazwa użytkownika']}",
+                        axis=1,
+                    )
+                    request_options = pending_requests["request_label"].tolist()
+                    selected_request_label = st.selectbox("Wybierz prosbe", request_options, key="reset_request_select")
+                    selected_request = pending_requests[pending_requests["request_label"] == selected_request_label].iloc[0]
+                    selected_request_id = int(selected_request["ID"])
+
+                    with st.form("approve_reset_request_form"):
+                        admin_new_password = st.text_input(
+                            "Nowe haslo tymczasowe",
+                            type="password",
+                            placeholder="Ustaw nowe haslo dla uzytkownika",
+                        )
+                        approve_reset_button = st.form_submit_button("Zatwierdz i ustaw haslo")
+
+                    if approve_reset_button:
+                        reset_ok, reset_message = approve_password_reset_request(
+                            selected_request_id,
+                            admin_new_password,
+                            st.session_state.user_name,
+                        )
+                        if reset_ok:
+                            st.success(reset_message)
+                            st.rerun()
+                        else:
+                            st.error(reset_message)
+
+                    if st.button("Odrzuc prosbe", key=f"reject_reset_request_{selected_request_id}"):
+                        reject_ok, reject_message = reject_password_reset_request(
+                            selected_request_id,
+                            st.session_state.user_name,
+                        )
+                        if reject_ok:
+                            st.success(reject_message)
+                            st.rerun()
+                        else:
+                            st.error(reject_message)
+
     with st.form("formularz_zgloszenia", clear_on_submit=True):
         st.write("Twoje dane użytkownika zostały uzupełnione automatycznie.")
 
