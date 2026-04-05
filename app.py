@@ -1083,56 +1083,67 @@ else:
         if reports_source_df.empty:
             st.info("Dashboard będzie dostępny po dodaniu pierwszych zgłoszeń.")
         else:
-            admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
-            admin_col1.metric("Nowe", int((reports_source_df["Status"] == "Nowe").sum()))
-            admin_col2.metric("W trakcie", int((reports_source_df["Status"] == "W trakcie").sum()))
-            admin_col3.metric("Zamknięte", int((reports_source_df["Status"] == "Zamknięte").sum()))
-            admin_col4.metric("Łącznie", len(reports_source_df))
+            with st.container(border=True):
+                admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
+                admin_col1.metric("Nowe", int((reports_source_df["Status"] == "Nowe").sum()))
+                admin_col2.metric("W trakcie", int((reports_source_df["Status"] == "W trakcie").sum()))
+                admin_col3.metric("Zamknięte", int((reports_source_df["Status"] == "Zamknięte").sum()))
+                admin_col4.metric("Łącznie", len(reports_source_df))
 
-            recent_admin_view = reports_source_df.sort_values(by="Data", ascending=False).head(5).copy()
-            recent_admin_view["Data"] = recent_admin_view["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
-            st.dataframe(
-                recent_admin_view[["ID", "Data", "Nazwa użytkownika", "Urządzenie", "Status"]],
-                use_container_width=True,
-                hide_index=True,
-            )
+                recent_admin_view = reports_source_df.sort_values(by="Data", ascending=False).head(5).copy()
+                recent_admin_view["Data"] = recent_admin_view["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
+                st.dataframe(
+                    recent_admin_view[["ID", "Data", "Nazwa użytkownika", "Urządzenie", "Status"]],
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
             users_df = load_users()
             if not users_df.empty:
-                with st.expander("Role użytkowników"):
-                    st.dataframe(users_df[["Email", "Nazwa użytkownika", "Rola"]], use_container_width=True, hide_index=True)
-                    editable_user_emails = users_df["Email"].astype(str).tolist()
-                    with st.form("role_management_form"):
-                        selected_user_email = st.selectbox("Użytkownik", editable_user_emails)
-                        selected_role = st.selectbox("Nowa rola", ["Użytkownik", "Technik", "Administrator"])
-                        update_role_button = st.form_submit_button("Zmień rolę")
+                manage_col, delete_col = st.columns(2, gap="large")
 
-                    if update_role_button:
-                        role_ok, role_message = update_user_role(selected_user_email, selected_role)
-                        if role_ok:
-                            st.success(role_message)
-                            st.rerun()
-                        else:
-                            st.error(role_message)
+                with manage_col:
+                    with st.container(border=True):
+                        st.markdown("#### Role użytkowników")
+                        st.dataframe(
+                            users_df[["Email", "Nazwa użytkownika", "Rola"]],
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                        editable_user_emails = users_df["Email"].astype(str).tolist()
+                        with st.form("role_management_form"):
+                            selected_user_email = st.selectbox("Użytkownik", editable_user_emails)
+                            selected_role = st.selectbox("Nowa rola", ["Użytkownik", "Technik", "Administrator"])
+                            update_role_button = st.form_submit_button("Zmień rolę")
 
-                with st.expander("Usuń użytkownika"):
-                    removable_users = users_df[
-                        users_df["Email"].astype(str).str.lower() != ADMIN_EMAIL.lower()
-                    ]["Email"].astype(str).tolist()
-                    if not removable_users:
-                        st.caption("Brak kont do usunięcia.")
-                    else:
-                        with st.form("delete_user_form"):
-                            selected_delete_email = st.selectbox("Konto do usunięcia", removable_users)
-                            delete_user_button = st.form_submit_button("Usuń konto")
-
-                        if delete_user_button:
-                            delete_ok, delete_message = delete_user(selected_delete_email)
-                            if delete_ok:
-                                st.success(delete_message)
+                        if update_role_button:
+                            role_ok, role_message = update_user_role(selected_user_email, selected_role)
+                            if role_ok:
+                                st.success(role_message)
                                 st.rerun()
                             else:
-                                st.error(delete_message)
+                                st.error(role_message)
+
+                with delete_col:
+                    with st.container(border=True):
+                        st.markdown("#### Usuń użytkownika")
+                        removable_users = users_df[
+                            users_df["Email"].astype(str).str.lower() != ADMIN_EMAIL.lower()
+                        ]["Email"].astype(str).tolist()
+                        if not removable_users:
+                            st.caption("Brak kont do usunięcia.")
+                        else:
+                            with st.form("delete_user_form"):
+                                selected_delete_email = st.selectbox("Konto do usunięcia", removable_users)
+                                delete_user_button = st.form_submit_button("Usuń konto")
+
+                            if delete_user_button:
+                                delete_ok, delete_message = delete_user(selected_delete_email)
+                                if delete_ok:
+                                    st.success(delete_message)
+                                    st.rerun()
+                                else:
+                                    st.error(delete_message)
 
     if not is_admin:
         st.markdown("<div class='section-title'><h3>Nowe zgłoszenie</h3></div>", unsafe_allow_html=True)
