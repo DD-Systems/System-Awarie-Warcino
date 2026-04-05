@@ -969,11 +969,11 @@ if "authenticated" not in st.session_state:
 
 # --- LOGOWANIE I REJESTRACJA ---
 if not st.session_state.authenticated:
-    spacer_left, auth_col, spacer_right = st.columns([2, 10, 2])
+    spacer_left, auth_col, spacer_right = st.columns([1, 14, 1])
     with auth_col:
         st.markdown("<div class='section-title'><h3>Logowanie i rejestracja</h3></div>", unsafe_allow_html=True)
 
-        info_col, form_col = st.columns([4, 8], gap="large")
+        info_col, form_col = st.columns([3, 9], gap="large")
         with info_col:
             with st.container(border=True):
                 st.markdown(
