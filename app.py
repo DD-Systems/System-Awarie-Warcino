@@ -1260,15 +1260,15 @@ else:
 
     przycisk = False
     opis = ""
+    email = st.session_state.user_email
+    nazwa_uzytkownika = st.session_state.user_name
+    urzadzenie = "Drukarka"
     if not is_admin:
         with st.form("formularz_zgloszenia", clear_on_submit=True):
-            st.write("Twoje dane u??ytkownika zosta??y uzupe??nione automatycznie.")
-
-            email = st.text_input("Email", value=st.session_state.user_email, disabled=True)
-            nazwa_uzytkownika = st.text_input("Nazwa u??ytkownika", value=st.session_state.user_name, disabled=True)
-            opis = st.text_area("Opis awarii (np. niedzia??a drukarka)", height=150)
-            urzadzenie = st.selectbox("Urz??dzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
-            przycisk = st.form_submit_button("Wy??lij zg??oszenie")
+            st.write("Zg?oszenie zostanie przypisane do Twojego konta automatycznie.")
+            opis = st.text_area("Opis awarii (np. nie dzia?a drukarka)", height=150)
+            urzadzenie = st.selectbox("Urz?dzenie", ["Drukarka", "Komputer", "Przewody", "Oprogramowanie", "Inne"])
+            przycisk = st.form_submit_button("Wy?lij zg?oszenie")
 
     if przycisk:
         if opis:
