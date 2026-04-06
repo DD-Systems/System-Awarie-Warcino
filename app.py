@@ -138,7 +138,7 @@ def render_reports_table(table_df: pd.DataFrame) -> str:
         )
 
     body_html = "".join(rows_html) if rows_html else (
-        "<tr><td colspan='7' class='report-table__empty'>Brak zg?osze? do wy?wietlenia.</td></tr>"
+        "<tr><td colspan='7' class='report-table__empty'>Brak zgłoszeń do wyświetlenia.</td></tr>"
     )
 
     return (
@@ -1412,7 +1412,7 @@ else:
             else:
                 st.error(test_message)
         if reports_source_df.empty:
-            st.info("Dashboard b?dzie dost?pny po dodaniu pierwszych zg?osze?.")
+            st.info("Dashboard będzie dostępny po dodaniu pierwszych zgłoszeń.")
         else:
             with st.container(border=True):
                 admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
