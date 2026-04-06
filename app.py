@@ -1525,7 +1525,7 @@ else:
             column_config={
                 "ID": st.column_config.NumberColumn(
                     "ID",
-                    width="small",
+                    width="tiny",
                 ),
                 "Data": st.column_config.TextColumn(
                     "Data",
@@ -1537,7 +1537,7 @@ else:
                 ),
                 "Status": st.column_config.TextColumn(
                     "Status",
-                    width="small",
+                    width="medium",
                 ),
                 "Opis": st.column_config.TextColumn(
                     "Opis",
@@ -1545,11 +1545,11 @@ else:
                 ),
                 "Urządzenie": st.column_config.TextColumn(
                     "Urządzenie",
-                    width="large",
+                    width="small",
                 ),
                 "Data aktualizacji": st.column_config.TextColumn(
                     "Aktualizacja",
-                    width="medium",
+                    width="small",
                 ),
             },
             height=420,
