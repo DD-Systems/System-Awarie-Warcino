@@ -6,6 +6,7 @@ import html
 import hashlib
 import smtplib
 import json
+import ipaddress
 import secrets
 import string
 import urllib.parse
@@ -67,19 +68,29 @@ def parse_local_datetime_series(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce")
 
 
+def _normalize_public_ip(ip_value: str) -> str:
+    ip_text = str(ip_value or "").split(",")[0].strip()
+    if not ip_text or ip_text.lower() == "none":
+        return ""
+    try:
+        parsed_ip = ipaddress.ip_address(ip_text)
+    except ValueError:
+        return ""
+    return ip_text if parsed_ip.is_global else ""
+
+
 def get_request_ip() -> str:
-    context_ip = getattr(st.context, "ip_address", None)
-    if context_ip and str(context_ip).strip().lower() != "none":
-        return str(context_ip).strip()
+    context_ip = _normalize_public_ip(getattr(st.context, "ip_address", ""))
+    if context_ip:
+        return context_ip
 
     headers = getattr(st.context, "headers", None)
     if headers:
-        for header_name in ("x-forwarded-for", "x-real-ip", "cf-connecting-ip"):
+        for header_name in ("x-forwarded-for", "x-real-ip", "cf-connecting-ip", "forwarded"):
             header_value = headers.get(header_name)
-            if header_value:
-                first_ip = str(header_value).split(",")[0].strip()
-                if first_ip and first_ip.lower() != "none":
-                    return first_ip
+            public_ip = _normalize_public_ip(header_value)
+            if public_ip:
+                return public_ip
 
     return ""
 
@@ -1717,7 +1728,7 @@ else:
                             f"Email zgłaszającego: {selected_report['Email'] or 'brak'}"
                         )
                         admin_meta_col2.caption(
-                            f"Adres IP zgłoszenia: {selected_report['Adres IP'] or 'lokalnie niedostępne'}"
+                            f"Adres IP zgłoszenia: {selected_report['Adres IP'] or 'brak'}"
                         )
 
                     with st.form(f"edit_report_form_{selected_id}"):
