@@ -491,11 +491,11 @@ def delete_report(report_id: int) -> tuple[bool, str]:
     if reports.empty:
         return False, "Brak zgłoszeń do usunięcia."
 
-    report_mask = pd.to_numeric(reports["ID"], errors="coerce") == int(report_id)
-    if not report_mask.any():
+    report_index = reports.index[pd.to_numeric(reports["ID"], errors="coerce") == int(report_id)]
+    if len(report_index) == 0:
         return False, "Nie znaleziono wskazanego zgłoszenia."
 
-    reports = reports.loc[~report_mask].copy()
+    reports = reports.drop(index=report_index[0]).reset_index(drop=True)
     save_reports(reports)
     return True, "Zgłoszenie zostało usunięte."
 
@@ -529,6 +529,8 @@ def load_reports() -> pd.DataFrame:
     df["Status"] = df["Status"].replace("", pd.NA).fillna("Nowe")
     df["Rozwiązanie"] = df["Rozwiązanie"].fillna("")
     df["Historia zmian"] = df["Historia zmian"].apply(lambda value: dumps_compact(safe_json_loads(value, [])))
+    df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
+    df["Data aktualizacji"] = pd.to_datetime(df["Data aktualizacji"], errors="coerce")
     df["ID"] = pd.to_numeric(df["ID"], errors="coerce")
     if df["ID"].isna().any():
         df["ID"] = range(1, len(df) + 1)
@@ -1412,6 +1414,8 @@ else:
             st.success(edit_success_message)
 
         display_df = filtered_df.copy()
+        display_df["Data"] = pd.to_datetime(display_df["Data"], errors="coerce")
+        display_df["Data aktualizacji"] = pd.to_datetime(display_df["Data aktualizacji"], errors="coerce")
         display_df["Data"] = display_df["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Data aktualizacji"] = display_df["Data aktualizacji"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Historia zmian"] = display_df["Historia zmian"].apply(lambda value: len(safe_json_loads(value, [])))
