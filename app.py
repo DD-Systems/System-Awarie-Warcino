@@ -95,8 +95,36 @@ def get_request_ip() -> str:
     return ""
 
 
+def normalize_status(value: str) -> str:
+    raw_status = str(value or "").strip()
+    status = raw_status.lower()
+
+    if status in {
+        "nowe",
+    }:
+        return "Nowe"
+
+    if status in {
+        "w trakcie",
+        "wtrakcie",
+    }:
+        return "W trakcie"
+
+    if status in {
+        "zamknięte",
+        "zamkniete",
+        "zamkni?te",
+        "zamkni�te",
+        "zamkniã„â„¢te",
+        "zamkniãªte",
+    }:
+        return "Zamknięte"
+
+    return "Nowe" if not raw_status else raw_status
+
+
 def style_report_status(value: str) -> str:
-    status = str(value).strip().lower()
+    status = normalize_status(value).lower()
     if status == "zamknięte":
         return "background-color: rgba(46, 125, 50, 0.28); color: #d8f3dc; font-weight: 700;"
     if status in {"nowe", "w trakcie"}:
@@ -105,11 +133,13 @@ def style_report_status(value: str) -> str:
 
 
 def get_status_badge_class(value: str) -> str:
-    status = str(value).strip().lower()
+    status = normalize_status(value).lower()
     if status == "zamknięte":
         return "report-status--closed"
-    if status in {"nowe", "w trakcie"}:
-        return "report-status--open"
+    if status == "w trakcie":
+        return "report-status--progress"
+    if status == "nowe":
+        return "report-status--new"
     return "report-status--neutral"
 
 
@@ -121,9 +151,10 @@ def render_reports_table(table_df: pd.DataFrame) -> str:
         row_user = html.escape(str(row["Nazwa użytkownika"]))
         row_description = html.escape(str(row["Opis"]))
         row_device = html.escape(str(row["Urządzenie"]))
-        row_status = html.escape(str(row["Status"]))
+        normalized_status = normalize_status(row["Status"])
+        row_status = html.escape(normalized_status)
         row_update = html.escape(str(row["Data aktualizacji"]))
-        status_class = get_status_badge_class(row["Status"])
+        status_class = get_status_badge_class(normalized_status)
 
         rows_html.append(
             "<tr>"
@@ -534,7 +565,8 @@ st.markdown(
     "  border-radius: 0.7rem;"
     "  font-weight: 700;"
     "}"
-    ".report-status--open { background: rgba(198, 40, 40, 0.28); color: #ffe3e3; }"
+    ".report-status--new { background: rgba(198, 40, 40, 0.28); color: #ffe3e3; }"
+    ".report-status--progress { background: rgba(245, 158, 11, 0.28); color: #fff3c4; }"
     ".report-status--closed { background: rgba(46, 125, 50, 0.28); color: #d8f3dc; }"
     ".report-status--neutral { background: rgba(99, 115, 129, 0.25); color: #edf2f7; }"
     "@media (max-width: 900px) {"
@@ -728,7 +760,7 @@ def load_reports() -> pd.DataFrame:
 
     df = df[REPORT_COLUMNS].copy()
     df["Adres IP"] = df["Adres IP"].replace(["None", "none", "nan", "NaN"], "").fillna("")
-    df["Status"] = df["Status"].replace("", pd.NA).fillna("Nowe")
+    df["Status"] = df["Status"].apply(normalize_status)
     df["Rozwiązanie"] = df["Rozwiązanie"].fillna("")
     df["Historia zmian"] = df["Historia zmian"].apply(lambda value: dumps_compact(safe_json_loads(value, [])))
     df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
@@ -1418,8 +1450,8 @@ else:
                 admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
                 admin_col1.metric("Nowe", int((reports_source_df["Status"] == "Nowe").sum()))
                 admin_col2.metric("W trakcie", int((reports_source_df["Status"] == "W trakcie").sum()))
-                admin_col3.metric("Zamkni?te", int((reports_source_df["Status"] == "Zamkni?te").sum()))
-                admin_col4.metric("??cznie", len(reports_source_df))
+                admin_col3.metric("Zamknięte", int((reports_source_df["Status"] == "Zamknięte").sum()))
+                admin_col4.metric("Łącznie", len(reports_source_df))
 
                 recent_admin_view = reports_source_df.sort_values(by="Data", ascending=False).head(5).copy()
                 recent_admin_view["Data"] = recent_admin_view["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
@@ -1784,6 +1816,7 @@ else:
                             st.error(delete_message)
 
                     if save_edit_button:
+                        edited_status = normalize_status(edited_status)
                         if not edited_description.strip():
                             st.error("Opis zgłoszenia nie może być pusty.")
                         elif edited_status == "Zamknięte" and not edited_solution.strip():
