@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import os
 import base64
@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from email.message import EmailMessage
 
 # Konfiguracja strony
-st.set_page_config(page_title="System Awarii", page_icon="🛠️", layout="wide")
+st.set_page_config(page_title="System Awarii", page_icon="???", layout="wide")
 
 USER_FILE = "uzytkownicy.csv"
 REPORT_FILE = "zgloszenia.csv"
@@ -26,7 +26,7 @@ NOTIFY_EMAIL = "daniel@wmc24.pl"
 ADMIN_EMAIL = "daniel@wmc24.pl"
 APP_TIMEZONE = ZoneInfo("Europe/Warsaw")
 SESSION_TIMEOUT_MINUTES = 30
-USER_PASSWORD_CHANGE_COLUMN = "Wymaga zmiany hasla"
+USER_PASSWORD_CHANGE_COLUMN = "Wymaga zmiany hasła"
 USER_COLUMNS = ["Email", "Nazwa użytkownika", "Haslo", "Rola"]
 RESET_REQUEST_COLUMNS = [
     "ID",
@@ -35,8 +35,8 @@ RESET_REQUEST_COLUMNS = [
     "Nazwa użytkownika",
     "Powod",
     "Status",
-    "Obsluzone przez",
-    "Data obslugi",
+    "Obsłużone przez",
+    "Data obsługi",
 ]
 REPORT_COLUMNS = [
     "ID",
@@ -109,7 +109,7 @@ def render_reports_table(table_df: pd.DataFrame) -> str:
         )
 
     body_html = "".join(rows_html) if rows_html else (
-        "<tr><td colspan='7' class='report-table__empty'>Brak zgłoszeń do wyświetlenia.</td></tr>"
+        "<tr><td colspan='7' class='report-table__empty'>Brak zg?osze? do wy?wietlenia.</td></tr>"
     )
 
     return (
@@ -475,7 +475,7 @@ st.markdown(
     "  background: #1e2027;"
     "  color: #bfc5d2;"
     "  font-weight: 600;"
-    "  text-align: left;"
+    "  text-align: center;"
     "  padding: 0.9rem 0.7rem;"
     "  border-right: 1px solid rgba(255,255,255,0.08);"
     "}"
@@ -483,13 +483,14 @@ st.markdown(
     "  padding: 0.85rem 0.7rem;"
     "  border-top: 1px solid rgba(255,255,255,0.08);"
     "  border-right: 1px solid rgba(255,255,255,0.08);"
-    "  vertical-align: top;"
+    "  vertical-align: middle;"
+    "  text-align: center;"
     "  overflow: hidden;"
     "  text-overflow: ellipsis;"
     "  white-space: nowrap;"
     "}"
     ".report-table th:last-child, .report-table td:last-child { border-right: none; }"
-    ".report-table .col-description { white-space: normal; line-height: 1.45; }"
+    ".report-table .col-description { white-space: normal; line-height: 1.45; text-align: center; }"
     ".report-table__empty {"
     "  text-align: center;"
     "  color: #d7d2c8;"
@@ -559,7 +560,7 @@ def load_users() -> pd.DataFrame:
         if USER_PASSWORD_CHANGE_COLUMN not in df.columns:
             df[USER_PASSWORD_CHANGE_COLUMN] = ""
         df = df[USER_COLUMNS + [USER_PASSWORD_CHANGE_COLUMN]].copy()
-        df["Rola"] = df["Rola"].replace("", pd.NA).fillna("Użytkownik")
+        df["Rola"] = df["Rola"].replace("", pd.NA).fillna("U?ytkownik")
         df[USER_PASSWORD_CHANGE_COLUMN] = (
             df[USER_PASSWORD_CHANGE_COLUMN]
             .replace("", pd.NA)
@@ -677,6 +678,18 @@ def load_reports() -> pd.DataFrame:
         return pd.DataFrame(columns=REPORT_COLUMNS)
 
     df = pd.read_csv(REPORT_FILE)
+    df = df.rename(
+        columns={
+            "Nazwa uĹĽytkownika": "Nazwa użytkownika",
+            "Nazwa u?ytkownika": "Nazwa użytkownika",
+            "UrzÄ…dzenie": "Urządzenie",
+            "Urz?dzenie": "Urządzenie",
+            "Urzšdzenie": "Urządzenie",
+            "RozwiÄ…zanie": "Rozwiązanie",
+            "Rozwi?zanie": "Rozwiązanie",
+            "Rozwišzanie": "Rozwiązanie",
+        }
+    )
     if "Priorytet" in df.columns:
         df = df.drop(columns=["Priorytet"])
 
@@ -758,8 +771,6 @@ def send_telegram_notification(title: str, body_lines: list[str]) -> tuple[bool,
             response.read()
         return True, "Powiadomienie Telegram zostało wysłane."
     except Exception as exc:
-        if telegram_ok:
-            return True, f"Telegram został wysłany, ale email się nie udał: {exc}"
         return False, f"Nie udało się wysłać powiadomienia Telegram: {exc}"
 
 
@@ -1005,7 +1016,7 @@ def create_password_reset_request(email: str, username: str, reason: str) -> tup
 
     email_lower = email.strip().lower()
     if not email_lower.endswith("@tlwarcino.pl"):
-        return False, "Reset hasĹ‚a jest dostÄ™pny tylko dla zarejestrowanych adresĂłw email w domenie tlwarcino.pl."
+        return False, "Reset hasła jest dostępny tylko dla zarejestrowanych adresów email w domenie tlwarcino.pl."
 
     user_mask = users["Email"].astype(str).str.lower() == email_lower
     if not user_mask.any():
@@ -1019,22 +1030,22 @@ def create_password_reset_request(email: str, username: str, reason: str) -> tup
 def submit_password_reset_request(email: str, username: str) -> tuple[bool, str]:
     users = load_users()
     if users.empty:
-        return False, "Baza uzytkownikow jest pusta."
+        return False, "Baza użytkowników jest pusta."
 
     if not email.strip() or not username.strip():
-        return False, "Podaj email oraz nazwe uzytkownika."
+        return False, "Podaj email oraz nazwę użytkownika."
 
     email_lower = email.strip().lower()
     username_lower = username.strip().lower()
     if not email_lower.endswith("@tlwarcino.pl"):
-        return False, "Reset hasla jest dostepny tylko dla adresow email w domenie tlwarcino.pl."
+        return False, "Reset hasła jest dostępny tylko dla adresów email w domenie tlwarcino.pl."
 
     user_mask = (
         (users["Email"].astype(str).str.lower() == email_lower)
         & (users["Nazwa użytkownika"].astype(str).str.lower() == username_lower)
     )
     if not user_mask.any():
-        return False, "Nie znaleziono konta z takim emailem i nazwa uzytkownika."
+        return False, "Nie znaleziono konta z takim emailem i nazwą użytkownika."
 
     temporary_password = generate_temporary_password()
     email_ok, email_message = send_temporary_password_email(
@@ -1077,7 +1088,7 @@ def approve_password_reset_request(request_id: int, admin_name: str) -> tuple[bo
     users = load_users()
     user_mask = users["Email"].astype(str).str.lower() == str(request_row["Email"]).strip().lower()
     if not user_mask.any():
-        return False, "Nie znaleziono uzytkownika powiazanego z ta prosba."
+        return False, "Nie znaleziono użytkownika powiązanego z tą prośbą."
 
     temporary_password = generate_temporary_password()
     email_ok, email_message = send_temporary_password_email(
@@ -1095,8 +1106,8 @@ def approve_password_reset_request(request_id: int, admin_name: str) -> tuple[bo
 
     now = get_local_timestamp()
     requests_df.loc[request_mask, "Status"] = "Zatwierdzona"
-    requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
-    requests_df.loc[request_mask, "Data obslugi"] = now
+    requests_df.loc[request_mask, "Obsłużone przez"] = admin_name
+    requests_df.loc[request_mask, "Data obsługi"] = now
     save_reset_requests(requests_df)
     send_admin_account_notification(
         "Zatwierdzono reset hasła",
@@ -1126,8 +1137,8 @@ def reject_password_reset_request(request_id: int, admin_name: str) -> tuple[boo
 
     now = get_local_timestamp()
     requests_df.loc[request_mask, "Status"] = "Odrzucona"
-    requests_df.loc[request_mask, "Obsluzone przez"] = admin_name
-    requests_df.loc[request_mask, "Data obslugi"] = now
+    requests_df.loc[request_mask, "Obsłużone przez"] = admin_name
+    requests_df.loc[request_mask, "Data obsługi"] = now
     save_reset_requests(requests_df)
     return True, "Prosba o reset hasla zostala odrzucona."
 
@@ -1364,14 +1375,14 @@ else:
             else:
                 st.error(test_message)
         if reports_source_df.empty:
-            st.info("Dashboard będzie dostępny po dodaniu pierwszych zgłoszeń.")
+            st.info("Dashboard b?dzie dost?pny po dodaniu pierwszych zg?osze?.")
         else:
             with st.container(border=True):
                 admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
                 admin_col1.metric("Nowe", int((reports_source_df["Status"] == "Nowe").sum()))
                 admin_col2.metric("W trakcie", int((reports_source_df["Status"] == "W trakcie").sum()))
-                admin_col3.metric("Zamknięte", int((reports_source_df["Status"] == "Zamknięte").sum()))
-                admin_col4.metric("Łącznie", len(reports_source_df))
+                admin_col3.metric("Zamkni?te", int((reports_source_df["Status"] == "Zamkni?te").sum()))
+                admin_col4.metric("??cznie", len(reports_source_df))
 
                 recent_admin_view = reports_source_df.sort_values(by="Data", ascending=False).head(5).copy()
                 recent_admin_view["Data"] = recent_admin_view["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
@@ -1453,8 +1464,8 @@ else:
                     selected_request_id = int(selected_request["ID"])
 
                     with st.form("approve_reset_request_form"):
-                        st.caption("Po zatwierdzeniu system wyśle użytkownikowi hasło tymczasowe na email.")
-                        approve_reset_button = st.form_submit_button("Zatwierdz i wyślij hasło tymczasowe")
+                        st.caption("Po zatwierdzeniu system wy?le u?ytkownikowi has?o tymczasowe na email.")
+                        approve_reset_button = st.form_submit_button("Zatwierd? i wy?lij has?o tymczasowe")
 
                     if approve_reset_button:
                         reset_ok, reset_message = approve_password_reset_request(
@@ -1697,12 +1708,6 @@ else:
                             height=100,
                             help="Przy zamknięciu zgłoszenia wpisz krótki opis rozwiązania.",
                         )
-                        edited_comment = st.text_area(
-                            "Komentarz / opis dodatkowy",
-                            value="" if pd.isna(selected_report["Komentarz"]) else str(selected_report["Komentarz"]),
-                            height=120,
-                            help="Tutaj admin lub zgłaszający może dopisać uzupełnienia do zgłoszenia.",
-                        )
                         save_edit_button = st.form_submit_button("Zapisz zmiany")
 
                     if is_admin:
@@ -1746,7 +1751,6 @@ else:
                                 previous_status = str(reports_df.at[idx, "Status"])
                                 previous_phone = str(reports_df.at[idx, "Telefon"])
                                 previous_description = str(reports_df.at[idx, "Opis"])
-                                previous_comment = str(reports_df.at[idx, "Komentarz"])
                                 previous_solution = str(reports_df.at[idx, "Rozwiązanie"])
                                 action_parts = []
                                 if previous_status != edited_status:
@@ -1755,8 +1759,6 @@ else:
                                     action_parts.append("Zmieniono telefon")
                                 if previous_description != edited_description.strip():
                                     action_parts.append("Zmieniono opis")
-                                if previous_comment != edited_comment.strip():
-                                    action_parts.append("Zmieniono komentarz")
                                 if previous_solution != edited_solution.strip():
                                     action_parts.append("Zmieniono rozwiązanie")
                                 action_label = ", ".join(action_parts) if action_parts else "Zapisano bez zmian"
@@ -1769,7 +1771,6 @@ else:
                                     st.session_state.user_name,
                                     action_label,
                                 )
-                                reports_df.at[idx, "Komentarz"] = edited_comment.strip()
                                 reports_df.at[idx, "Data aktualizacji"] = get_local_timestamp()
                                 save_reports(reports_df)
                                 if previous_status != edited_status:
@@ -1793,3 +1794,4 @@ st.markdown(
     "<div style='text-align:center; color:#666; padding:0.5rem 0;'>© 2026 Panel zgłoszeniowy awarii</div>",
     unsafe_allow_html=True,
 )
+
