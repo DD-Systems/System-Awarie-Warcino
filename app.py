@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
+import html
 import hashlib
 import smtplib
 import json
@@ -72,6 +73,70 @@ def style_report_status(value: str) -> str:
     if status in {"nowe", "w trakcie"}:
         return "background-color: rgba(198, 40, 40, 0.28); color: #ffe3e3; font-weight: 700;"
     return ""
+
+
+def get_status_badge_class(value: str) -> str:
+    status = str(value).strip().lower()
+    if status == "zamknięte":
+        return "report-status--closed"
+    if status in {"nowe", "w trakcie"}:
+        return "report-status--open"
+    return "report-status--neutral"
+
+
+def render_reports_table(table_df: pd.DataFrame) -> str:
+    rows_html: list[str] = []
+    for _, row in table_df.iterrows():
+        row_id = html.escape(str(row["ID"]))
+        row_date = html.escape(str(row["Data"]))
+        row_user = html.escape(str(row["Nazwa użytkownika"]))
+        row_description = html.escape(str(row["Opis"]))
+        row_device = html.escape(str(row["Urządzenie"]))
+        row_status = html.escape(str(row["Status"]))
+        row_update = html.escape(str(row["Data aktualizacji"]))
+        status_class = get_status_badge_class(row["Status"])
+
+        rows_html.append(
+            "<tr>"
+            f"<td class='col-id'>{row_id}</td>"
+            f"<td class='col-date'>{row_date}</td>"
+            f"<td class='col-user'>{row_user}</td>"
+            f"<td class='col-description'>{row_description}</td>"
+            f"<td class='col-device'>{row_device}</td>"
+            f"<td class='col-status'><span class='report-status {status_class}'>{row_status}</span></td>"
+            f"<td class='col-update'>{row_update}</td>"
+            "</tr>"
+        )
+
+    body_html = "".join(rows_html) if rows_html else (
+        "<tr><td colspan='7' class='report-table__empty'>Brak zgłoszeń do wyświetlenia.</td></tr>"
+    )
+
+    return (
+        "<div class='report-table-wrap'>"
+        "<table class='report-table'>"
+        "<colgroup>"
+        "<col style='width: 56px'>"
+        "<col style='width: 145px'>"
+        "<col style='width: 150px'>"
+        "<col style='width: 430px'>"
+        "<col style='width: 130px'>"
+        "<col style='width: 120px'>"
+        "<col style='width: 145px'>"
+        "</colgroup>"
+        "<thead><tr>"
+        "<th>ID</th>"
+        "<th>Data</th>"
+        "<th>Użytkownik</th>"
+        "<th>Opis</th>"
+        "<th>Urządzenie</th>"
+        "<th>Status</th>"
+        "<th>Aktualizacja</th>"
+        "</tr></thead>"
+        f"<tbody>{body_html}</tbody>"
+        "</table>"
+        "</div>"
+    )
 
 
 def get_logo_data_uri(path: str) -> str:
@@ -392,6 +457,56 @@ st.markdown(
     "  font-family: Consolas, 'Courier New', monospace;"
     "  font-size: 0.95rem;"
     "}"
+    ".report-table-wrap {"
+    "  overflow-x: auto;"
+    "  border: 1px solid var(--line);"
+    "  border-radius: 1rem;"
+    "  background: #121419;"
+    "  box-shadow: 0 18px 42px rgba(45, 59, 40, 0.06);"
+    "}"
+    ".report-table {"
+    "  width: 100%;"
+    "  min-width: 1180px;"
+    "  border-collapse: collapse;"
+    "  table-layout: fixed;"
+    "  color: #f6f1e8;"
+    "}"
+    ".report-table thead th {"
+    "  background: #1e2027;"
+    "  color: #bfc5d2;"
+    "  font-weight: 600;"
+    "  text-align: left;"
+    "  padding: 0.9rem 0.7rem;"
+    "  border-right: 1px solid rgba(255,255,255,0.08);"
+    "}"
+    ".report-table tbody td {"
+    "  padding: 0.85rem 0.7rem;"
+    "  border-top: 1px solid rgba(255,255,255,0.08);"
+    "  border-right: 1px solid rgba(255,255,255,0.08);"
+    "  vertical-align: top;"
+    "  overflow: hidden;"
+    "  text-overflow: ellipsis;"
+    "  white-space: nowrap;"
+    "}"
+    ".report-table th:last-child, .report-table td:last-child { border-right: none; }"
+    ".report-table .col-description { white-space: normal; line-height: 1.45; }"
+    ".report-table__empty {"
+    "  text-align: center;"
+    "  color: #d7d2c8;"
+    "  padding: 1.3rem 1rem !important;"
+    "}"
+    ".report-status {"
+    "  display: inline-flex;"
+    "  align-items: center;"
+    "  justify-content: center;"
+    "  min-width: 96px;"
+    "  padding: 0.38rem 0.7rem;"
+    "  border-radius: 0.7rem;"
+    "  font-weight: 700;"
+    "}"
+    ".report-status--open { background: rgba(198, 40, 40, 0.28); color: #ffe3e3; }"
+    ".report-status--closed { background: rgba(46, 125, 50, 0.28); color: #d8f3dc; }"
+    ".report-status--neutral { background: rgba(99, 115, 129, 0.25); color: #edf2f7; }"
     "@media (max-width: 900px) {"
     "  .forest-hero__top { flex-direction: column; }"
     "  .forest-hero__lead { width: 100%; }"
@@ -1514,46 +1629,7 @@ else:
                 "Data aktualizacji",
             ]
         ].copy()
-        compact_display_df["Opis"] = compact_display_df["Opis"].apply(
-            lambda value: (str(value)[:55] + "…") if len(str(value)) > 55 else str(value)
-        )
-        styled_display_df = compact_display_df.style.map(style_report_status, subset=["Status"])
-        st.dataframe(
-            styled_display_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "ID": st.column_config.NumberColumn(
-                    "ID",
-                    width="tiny",
-                ),
-                "Data": st.column_config.TextColumn(
-                    "Data",
-                    width="medium",
-                ),
-                "Nazwa użytkownika": st.column_config.TextColumn(
-                    "Użytkownik",
-                    width="medium",
-                ),
-                "Status": st.column_config.TextColumn(
-                    "Status",
-                    width="medium",
-                ),
-                "Opis": st.column_config.TextColumn(
-                    "Opis",
-                    width="large",
-                ),
-                "Urządzenie": st.column_config.TextColumn(
-                    "Urządzenie",
-                    width="small",
-                ),
-                "Data aktualizacji": st.column_config.TextColumn(
-                    "Aktualizacja",
-                    width="small",
-                ),
-            },
-            height=420,
-        )
+        st.markdown(render_reports_table(compact_display_df), unsafe_allow_html=True)
         long_description_rows = full_description_df[
             full_description_df["Opis"].astype(str).str.len() > 55
         ][["ID", "Nazwa użytkownika", "Opis"]].copy()
