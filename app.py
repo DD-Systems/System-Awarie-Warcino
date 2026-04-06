@@ -1352,9 +1352,9 @@ else:
             save_reports(reports_df)
             notification_ok, notification_message = send_new_report_notification(nowy_wpis.iloc[0].to_dict())
             if not notification_ok:
-                st.session_state["report_edit_success"] = f"Zg?oszenie zapisano, ale powiadomienie nie zosta?o wys?ane: {notification_message}"
+                st.session_state["report_edit_success"] = f"Zgłoszenie zapisano, ale powiadomienie nie zostało wysłane: {notification_message}"
             else:
-                st.session_state["report_edit_success"] = "Zg?oszenie zosta?o zapisane pomy?lnie."
+                st.session_state["report_edit_success"] = "Zgłoszenie zostało zapisane pomyślnie."
             st.rerun()
         else:
             st.error("Opis awarii nie mo?e by? pusty.")
