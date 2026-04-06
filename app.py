@@ -80,6 +80,18 @@ def get_logo_data_uri(path: str) -> str:
     encoded = base64.b64encode(Path(path).read_bytes()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
 
+
+def persist_auth_session() -> None:
+    st.query_params["auth"] = "1"
+    st.query_params["user_email"] = st.session_state.user_email
+    st.query_params["user_name"] = st.session_state.user_name
+    st.query_params["user_role"] = st.session_state.user_role
+    st.query_params["must_change_password"] = "1" if st.session_state.must_change_password else "0"
+
+
+def clear_auth_session() -> None:
+    st.query_params.clear()
+
 st.markdown(
     "<style>"
     ":root {"
@@ -496,6 +508,19 @@ def delete_report(report_id: int) -> tuple[bool, str]:
         return False, "Nie znaleziono wskazanego zgłoszenia."
 
     reports = reports.drop(index=report_index[0]).reset_index(drop=True)
+    save_reports(reports)
+    return True, "Zgłoszenie zostało usunięte."
+
+
+def delete_report_by_row_index(row_index: int) -> tuple[bool, str]:
+    reports = load_reports()
+    if reports.empty:
+        return False, "Brak zgłoszeń do usunięcia."
+
+    if row_index not in reports.index:
+        return False, "Nie znaleziono wskazanego zgłoszenia."
+
+    reports = reports.drop(index=row_index).reset_index(drop=True)
     save_reports(reports)
     return True, "Zgłoszenie zostało usunięte."
 
@@ -1029,6 +1054,13 @@ if "authenticated" not in st.session_state:
     st.session_state.user_role = ""
     st.session_state.must_change_password = False
 
+if not st.session_state.authenticated and st.query_params.get("auth") == "1":
+    st.session_state.authenticated = True
+    st.session_state.user_email = st.query_params.get("user_email", "")
+    st.session_state.user_name = st.query_params.get("user_name", "")
+    st.session_state.user_role = st.query_params.get("user_role", "")
+    st.session_state.must_change_password = st.query_params.get("must_change_password", "0") == "1"
+
 
 # --- LOGOWANIE I REJESTRACJA ---
 if not st.session_state.authenticated:
@@ -1076,6 +1108,7 @@ if not st.session_state.authenticated:
                                 st.session_state.user_name = user_data["username"]
                                 st.session_state.user_role = user_data["role"]
                                 st.session_state.must_change_password = user_data.get("must_change_password", False)
+                                persist_auth_session()
                                 st.success(f"Zalogowano jako {st.session_state.user_name}")
                                 st.rerun()
                             else:
@@ -1127,6 +1160,7 @@ else:
         st.session_state.user_name = ""
         st.session_state.user_role = ""
         st.session_state.must_change_password = False
+        clear_auth_session()
         st.rerun()
 
     if st.session_state.must_change_password:
@@ -1144,6 +1178,7 @@ else:
             )
             if password_ok:
                 st.session_state.must_change_password = False
+                persist_auth_session()
                 st.success(password_message)
                 st.rerun()
             else:
@@ -1308,18 +1343,21 @@ else:
             teraz = get_local_timestamp()
             reports_df = load_reports()
             next_id = int(reports_df["ID"].max() + 1) if not reports_df.empty else 1
-            history_value = append_history_entry("", st.session_state.user_name, "Utworzono zgłoszenie")
+            history_value = append_history_entry("", st.session_state.user_name, "Utworzono zg?oszenie")
             nowy_wpis = pd.DataFrame(
                 [[next_id, teraz, email, telefon.strip(), nazwa_uzytkownika, opis, urzadzenie, "Nowe", "", history_value, "", teraz]],
                 columns=REPORT_COLUMNS,
             )
             reports_df = pd.concat([reports_df, nowy_wpis], ignore_index=True)
             save_reports(reports_df)
-            st.success("✅ Zgłoszenie zostało zapisane pomyślnie!")
             notification_ok, notification_message = send_new_report_notification(nowy_wpis.iloc[0].to_dict())
             if not notification_ok:
-                st.warning(notification_message)
+                st.session_state["report_edit_success"] = f"Zg?oszenie zapisano, ale powiadomienie nie zosta?o wys?ane: {notification_message}"
+            else:
+                st.session_state["report_edit_success"] = "Zg?oszenie zosta?o zapisane pomy?lnie."
+            st.rerun()
         else:
+            st.error("Opis awarii nie mo?e by? pusty.")
             st.error("⚠️ Musisz podać opis awarii!")
 
     st.divider()
@@ -1408,6 +1446,10 @@ else:
             filtered_df = filtered_df.sort_values(by="Data", ascending=False)
 
         st.caption(f"Wyświetlane zgłoszenia: {len(filtered_df)} z {total_reports}")
+        refresh_col_left, refresh_col_button, refresh_col_right = st.columns([6, 2, 1])
+        with refresh_col_button:
+            if st.button("Odśwież widok", use_container_width=True):
+                st.rerun()
 
         edit_success_message = st.session_state.pop("report_edit_success", None)
         if edit_success_message:
@@ -1499,6 +1541,7 @@ else:
                     )
                     selected_id = edit_options[selected_label]
                     selected_report = editable_reports[editable_reports["ID"] == selected_id].iloc[0]
+                    selected_row_index = int(selected_report.name)
 
                     with st.form(f"edit_report_form_{selected_id}"):
                         edited_status = st.selectbox(
@@ -1551,7 +1594,7 @@ else:
                         )
 
                     if delete_report_button:
-                        delete_ok, delete_message = delete_report(selected_id)
+                        delete_ok, delete_message = delete_report_by_row_index(selected_row_index)
                         if delete_ok:
                             st.session_state["report_edit_success"] = delete_message
                             st.rerun()
