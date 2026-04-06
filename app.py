@@ -42,6 +42,7 @@ REPORT_COLUMNS = [
     "ID",
     "Data",
     "Email",
+    "Adres IP",
     "Telefon",
     "Nazwa użytkownika",
     "Opis",
@@ -878,21 +879,28 @@ def send_admin_account_notification(subject: str, body_lines: list[str]) -> tupl
 
 
 def send_new_report_notification(report_row: dict) -> tuple[bool, str]:
-    return send_report_notification(
-        f"Nowe zgłoszenie awarii #{report_row['ID']} - {report_row['Urządzenie']}",
+    body_lines = [
+        "Dodano nowe zgłoszenie awarii.",
+        "",
+        f"ID: {report_row['ID']}",
+        f"Data: {report_row['Data']}",
+        f"Użytkownik: {report_row['Nazwa użytkownika']}",
+        f"Email: {report_row['Email']}",
+        f"Urządzenie: {report_row['Urządzenie']}",
+        f"Status: {report_row['Status']}",
+    ]
+    if str(report_row.get("Adres IP", "")).strip():
+        body_lines.append(f"Adres IP: {report_row['Adres IP']}")
+    body_lines.extend(
         [
-            "Dodano nowe zgłoszenie awarii.",
-            "",
-            f"ID: {report_row['ID']}",
-            f"Data: {report_row['Data']}",
-            f"Użytkownik: {report_row['Nazwa użytkownika']}",
-            f"Email: {report_row['Email']}",
-            f"Urządzenie: {report_row['Urządzenie']}",
-            f"Status: {report_row['Status']}",
             "",
             "Opis:",
             str(report_row["Opis"]),
-        ],
+        ]
+    )
+    return send_report_notification(
+        f"Nowe zgłoszenie awarii #{report_row['ID']} - {report_row['Urządzenie']}",
+        body_lines,
     )
 
 
@@ -1387,7 +1395,7 @@ else:
                 recent_admin_view = reports_source_df.sort_values(by="Data", ascending=False).head(5).copy()
                 recent_admin_view["Data"] = recent_admin_view["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
                 st.dataframe(
-                    recent_admin_view[["ID", "Data", "Nazwa użytkownika", "Urządzenie", "Status"]],
+                    recent_admin_view[["ID", "Data", "Nazwa użytkownika", "Urządzenie", "Adres IP", "Status"]],
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -1493,6 +1501,7 @@ else:
     opis = ""
     email = st.session_state.user_email
     nazwa_uzytkownika = st.session_state.user_name
+    request_ip = str(getattr(st.context, "ip_address", "") or "")
     telefon = ""
     urzadzenie = "Drukarka"
     if not is_admin:
@@ -1512,7 +1521,7 @@ else:
             next_id = int(reports_df["ID"].max() + 1) if not reports_df.empty else 1
             history_value = append_history_entry("", st.session_state.user_name, "Utworzono zgłoszenie")
             nowy_wpis = pd.DataFrame(
-                [[next_id, teraz, email, telefon.strip(), nazwa_uzytkownika, opis, urzadzenie, "Nowe", "", history_value, "", teraz]],
+                [[next_id, teraz, email, request_ip, telefon.strip(), nazwa_uzytkownika, opis, urzadzenie, "Nowe", "", history_value, "", teraz]],
                 columns=REPORT_COLUMNS,
             )
             reports_df = pd.concat([reports_df, nowy_wpis], ignore_index=True)
@@ -1683,6 +1692,15 @@ else:
                     selected_id = edit_options[selected_label]
                     selected_report = editable_reports[editable_reports["ID"] == selected_id].iloc[0]
                     selected_row_index = int(selected_report.name)
+
+                    if is_admin:
+                        admin_meta_col1, admin_meta_col2 = st.columns(2)
+                        admin_meta_col1.caption(
+                            f"Email zgłaszającego: {selected_report['Email'] or 'brak'}"
+                        )
+                        admin_meta_col2.caption(
+                            f"Adres IP zgłoszenia: {selected_report['Adres IP'] or 'brak'}"
+                        )
 
                     with st.form(f"edit_report_form_{selected_id}"):
                         edited_status = st.selectbox(
