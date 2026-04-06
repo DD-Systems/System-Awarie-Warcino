@@ -1343,7 +1343,7 @@ else:
             teraz = get_local_timestamp()
             reports_df = load_reports()
             next_id = int(reports_df["ID"].max() + 1) if not reports_df.empty else 1
-            history_value = append_history_entry("", st.session_state.user_name, "Utworzono zg?oszenie")
+            history_value = append_history_entry("", st.session_state.user_name, "Utworzono zgłoszenie")
             nowy_wpis = pd.DataFrame(
                 [[next_id, teraz, email, telefon.strip(), nazwa_uzytkownika, opis, urzadzenie, "Nowe", "", history_value, "", teraz]],
                 columns=REPORT_COLUMNS,
@@ -1357,7 +1357,7 @@ else:
                 st.session_state["report_edit_success"] = "Zgłoszenie zostało zapisane pomyślnie."
             st.rerun()
         else:
-            st.error("Opis awarii nie mo?e by? pusty.")
+            st.error("Opis awarii nie może być pusty.")
             st.error("⚠️ Musisz podać opis awarii!")
 
     st.divider()
