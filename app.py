@@ -1871,7 +1871,7 @@ else:
 
 st.markdown("---")
 st.markdown(
-    "<div style='text-align:center; color:#666; padding:0.5rem 0;'>© 2026 Panel zgłoszeniowy awarii</div>",
+    "<div style='text-align:center; color:#666; padding:0.5rem 0;'>© 2026 Panel zgłoszeniowy awarii | DD&amp;Systems | <a href='https://www.wmc24.pl' target='_blank' style='color:#666; text-decoration:none; font-weight:400;'>WMC Net</a></div>",
     unsafe_allow_html=True,
 )
 
