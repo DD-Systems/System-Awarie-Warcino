@@ -486,6 +486,20 @@ def delete_user(email: str) -> tuple[bool, str]:
     return True, "Konto użytkownika zostało usunięte."
 
 
+def delete_report(report_id: int) -> tuple[bool, str]:
+    reports = load_reports()
+    if reports.empty:
+        return False, "Brak zgłoszeń do usunięcia."
+
+    report_mask = pd.to_numeric(reports["ID"], errors="coerce") == int(report_id)
+    if not report_mask.any():
+        return False, "Nie znaleziono wskazanego zgłoszenia."
+
+    reports = reports.loc[~report_mask].copy()
+    save_reports(reports)
+    return True, "Zgłoszenie zostało usunięte."
+
+
 def safe_json_loads(value: str, default):
     if not value or pd.isna(value):
         return default
@@ -1484,9 +1498,9 @@ else:
 
                     with st.form(f"edit_report_form_{selected_id}"):
                         edited_status = st.selectbox(
-                            "Status zg?oszenia",
-                            ["Nowe", "W trakcie", "Zamkni?te"],
-                            index=["Nowe", "W trakcie", "Zamkni?te"].index(str(selected_report["Status"])),
+                            "Status zgłoszenia",
+                            ["Nowe", "W trakcie", "Zamknięte"],
+                            index=["Nowe", "W trakcie", "Zamknięte"].index(str(selected_report["Status"])),
                         )
                         phone_default = "" if pd.isna(selected_report["Telefon"]) else str(selected_report["Telefon"] )
                         edited_phone = st.text_input(
@@ -1514,11 +1528,31 @@ else:
                         )
                         save_edit_button = st.form_submit_button("Zapisz zmiany")
 
+                    if is_admin:
+                        delete_col_left, delete_col_button, delete_col_right = st.columns([3, 2, 3])
+                        with delete_col_button:
+                            delete_report_button = st.button(
+                                "Usuń całe zgłoszenie",
+                                key=f"delete_report_{selected_id}",
+                                type="secondary",
+                                use_container_width=True,
+                            )
+                    else:
+                        delete_report_button = False
+
                     with st.expander("Historia zmian"):
                         st.markdown(
                             f"<div class='report-history'>{format_history(selected_report['Historia zmian'])}</div>",
                             unsafe_allow_html=True,
                         )
+
+                    if delete_report_button:
+                        delete_ok, delete_message = delete_report(selected_id)
+                        if delete_ok:
+                            st.session_state["report_edit_success"] = delete_message
+                            st.rerun()
+                        else:
+                            st.error(delete_message)
 
                     if save_edit_button:
                         if not edited_description.strip():
