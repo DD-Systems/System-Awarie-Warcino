@@ -10,7 +10,7 @@ import string
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from email.message import EmailMessage
 
@@ -24,6 +24,7 @@ LOGO_FILE = "logo-tl-clean.png"
 NOTIFY_EMAIL = "daniel@wmc24.pl"
 ADMIN_EMAIL = "daniel@wmc24.pl"
 APP_TIMEZONE = ZoneInfo("Europe/Warsaw")
+SESSION_TIMEOUT_MINUTES = 30
 USER_PASSWORD_CHANGE_COLUMN = "Wymaga zmiany hasla"
 USER_COLUMNS = ["Email", "Nazwa użytkownika", "Haslo", "Rola"]
 RESET_REQUEST_COLUMNS = [
@@ -81,12 +82,30 @@ def get_logo_data_uri(path: str) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
+def get_session_expiry_timestamp() -> str:
+    return (get_local_now() + timedelta(minutes=SESSION_TIMEOUT_MINUTES)).isoformat()
+
+
+def parse_session_expiry(raw_value: str) -> datetime | None:
+    if not raw_value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw_value))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=APP_TIMEZONE)
+    return parsed.astimezone(APP_TIMEZONE)
+
+
 def persist_auth_session() -> None:
     st.query_params["auth"] = "1"
     st.query_params["user_email"] = st.session_state.user_email
     st.query_params["user_name"] = st.session_state.user_name
     st.query_params["user_role"] = st.session_state.user_role
     st.query_params["must_change_password"] = "1" if st.session_state.must_change_password else "0"
+    st.session_state.session_expires_at = get_session_expiry_timestamp()
+    st.query_params["session_expires_at"] = st.session_state.session_expires_at
 
 
 def clear_auth_session() -> None:
@@ -1053,6 +1072,8 @@ if "authenticated" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
     st.session_state.must_change_password = False
+    st.session_state.session_expires_at = ""
+    st.session_state.auth_timeout_message = ""
 
 if not st.session_state.authenticated and st.query_params.get("auth") == "1":
     st.session_state.authenticated = True
@@ -1060,12 +1081,31 @@ if not st.session_state.authenticated and st.query_params.get("auth") == "1":
     st.session_state.user_name = st.query_params.get("user_name", "")
     st.session_state.user_role = st.query_params.get("user_role", "")
     st.session_state.must_change_password = st.query_params.get("must_change_password", "0") == "1"
+    st.session_state.session_expires_at = st.query_params.get("session_expires_at", "")
+
+if st.session_state.authenticated:
+    expiry_dt = parse_session_expiry(st.session_state.session_expires_at)
+    if expiry_dt is None or get_local_now() > expiry_dt:
+        st.session_state.authenticated = False
+        st.session_state.user_email = ""
+        st.session_state.user_name = ""
+        st.session_state.user_role = ""
+        st.session_state.must_change_password = False
+        st.session_state.session_expires_at = ""
+        st.session_state.auth_timeout_message = "Sesja wygasła po 30 minutach. Zaloguj się ponownie."
+        clear_auth_session()
+        st.rerun()
+    else:
+        persist_auth_session()
 
 
 # --- LOGOWANIE I REJESTRACJA ---
 if not st.session_state.authenticated:
     spacer_left, auth_col, spacer_right = st.columns([0.7, 14.3, 1.2])
     with auth_col:
+        timeout_message = st.session_state.pop("auth_timeout_message", "")
+        if timeout_message:
+            st.warning(timeout_message)
         st.markdown("<div class='section-title'><h3>Logowanie i rejestracja</h3></div>", unsafe_allow_html=True)
 
         info_col, form_col = st.columns([3, 9], gap="large")
@@ -1160,6 +1200,7 @@ else:
         st.session_state.user_name = ""
         st.session_state.user_role = ""
         st.session_state.must_change_password = False
+        st.session_state.session_expires_at = ""
         clear_auth_session()
         st.rerun()
 
