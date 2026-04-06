@@ -199,6 +199,18 @@ def render_reports_table(table_df: pd.DataFrame) -> str:
     )
 
 
+def render_app_footer(top_margin_rem: float = 14.0) -> None:
+    st.markdown(
+        (
+            f"<div class='auth-footer-panel' style='margin-top:{top_margin_rem}rem;'>"
+            "© 2026 Panel zgłoszeniowy awarii | DD&amp;Systems | "
+            "<a href='https://www.wmc24.pl' target='_blank'>WMC Net</a>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
 def get_logo_data_uri(path: str) -> str:
     if not os.path.isfile(path):
         return ""
@@ -570,8 +582,9 @@ st.markdown(
     ".report-status--closed { background: #1f8f43; color: #f3fff7; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 0 0 1px rgba(18, 95, 43, 0.22); }"
     ".report-status--neutral { background: rgba(99, 115, 129, 0.25); color: #edf2f7; }"
     ".auth-footer-panel {"
-    "  margin: 14rem auto 0.4rem auto;"
-    "  max-width: 760px;"
+    "  width: 100%;"
+    "  margin-left: auto;"
+    "  margin-right: auto;"
     "  text-align: center;"
     "  color: #6f6b63;"
     "  padding: 0.95rem 1.2rem;"
@@ -1392,12 +1405,6 @@ if not st.session_state.authenticated:
                             else:
                                 st.error(message)
 
-        st.markdown(
-            "<div class='auth-footer-panel'>© 2026 Panel zgłoszeniowy awarii | DD&amp;Systems | <a href='https://www.wmc24.pl' target='_blank'>WMC Net</a></div>",
-            unsafe_allow_html=True,
-        )
-
-
 else:
     is_admin = is_admin_user(st.session_state.user_role, st.session_state.user_name)
     is_staff = is_admin or st.session_state.user_role.lower() == "technik"
@@ -1883,5 +1890,11 @@ else:
                                 st.rerun()
     else:
         st.info("Baza danych jest pusta. Dodaj pierwsze zgłoszenie.")
+
+if st.session_state.authenticated:
+    render_app_footer(14.0)
+
+if not st.session_state.authenticated:
+    render_app_footer(14.0)
 
 
