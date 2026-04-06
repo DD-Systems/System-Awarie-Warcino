@@ -569,6 +569,18 @@ st.markdown(
     ".report-status--progress { background: #d89a00; color: #fffbe8; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 0 0 1px rgba(133, 95, 0, 0.22); }"
     ".report-status--closed { background: #1f8f43; color: #f3fff7; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 0 0 1px rgba(18, 95, 43, 0.22); }"
     ".report-status--neutral { background: rgba(99, 115, 129, 0.25); color: #edf2f7; }"
+    ".auth-footer-panel {"
+    "  margin: 14rem auto 0.4rem auto;"
+    "  max-width: 760px;"
+    "  text-align: center;"
+    "  color: #6f6b63;"
+    "  padding: 0.95rem 1.2rem;"
+    "  background: rgba(222, 214, 201, 0.42);"
+    "  border: 1px solid rgba(47, 90, 60, 0.06);"
+    "  border-radius: 1rem;"
+    "  box-shadow: 0 6px 16px rgba(45, 59, 40, 0.03);"
+    "}"
+    ".auth-footer-panel a { color: #6f6b63; text-decoration: none; font-weight: 400; }"
     "@media (max-width: 900px) {"
     "  .forest-hero__top { flex-direction: column; }"
     "  .forest-hero__lead { width: 100%; }"
@@ -1363,7 +1375,6 @@ if not st.session_state.authenticated:
                                 st.error(message)
 
                         st.info("Podczas rejestracji system wysyła hasło tymczasowe na podany adres email.")
-                        st.stop()
                     else:
                         st.markdown("<div class='auth-mode-caption'>Zresetuj hasło. System wyśle hasło tymczasowe bezpośrednio na email użytkownika.</div>", unsafe_allow_html=True)
                         with st.form("reset_password_request_form", clear_on_submit=True):
@@ -1380,6 +1391,11 @@ if not st.session_state.authenticated:
                                 st.success(message)
                             else:
                                 st.error(message)
+
+        st.markdown(
+            "<div class='auth-footer-panel'>© 2026 Panel zgłoszeniowy awarii | DD&amp;Systems | <a href='https://www.wmc24.pl' target='_blank'>WMC Net</a></div>",
+            unsafe_allow_html=True,
+        )
 
 
 else:
@@ -1868,10 +1884,4 @@ else:
     else:
         st.info("Baza danych jest pusta. Dodaj pierwsze zgłoszenie.")
 
-
-st.markdown("---")
-st.markdown(
-    "<div style='text-align:center; color:#666; padding:0.5rem 0;'>© 2026 Panel zgłoszeniowy awarii | DD&amp;Systems | <a href='https://www.wmc24.pl' target='_blank' style='color:#666; text-decoration:none; font-weight:400;'>WMC Net</a></div>",
-    unsafe_allow_html=True,
-)
 
