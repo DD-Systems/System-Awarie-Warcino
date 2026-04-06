@@ -1521,11 +1521,11 @@ else:
             column_config={
                 "ID": st.column_config.NumberColumn(
                     "ID",
-                    width="small",
+                    width="tiny",
                 ),
                 "Data": st.column_config.TextColumn(
                     "Data",
-                    width="medium",
+                    width="small",
                 ),
                 "Nazwa użytkownika": st.column_config.TextColumn(
                     "Użytkownik",
@@ -1541,11 +1541,11 @@ else:
                 ),
                 "Urządzenie": st.column_config.TextColumn(
                     "Urządzenie",
-                    width="small",
+                    width="medium",
                 ),
                 "Data aktualizacji": st.column_config.TextColumn(
                     "Aktualizacja",
-                    width="medium",
+                    width="small",
                 ),
             },
             height=420,
