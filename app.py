@@ -92,6 +92,19 @@ def get_request_ip() -> str:
             if public_ip:
                 return public_ip
 
+    public_ip_services = [
+        "https://api.ipify.org",
+        "https://ifconfig.me/ip",
+    ]
+    for service_url in public_ip_services:
+        try:
+            with urllib.request.urlopen(service_url, timeout=5) as response:
+                public_ip = _normalize_public_ip(response.read().decode("utf-8").strip())
+            if public_ip:
+                return public_ip
+        except Exception:
+            continue
+
     return ""
 
 
