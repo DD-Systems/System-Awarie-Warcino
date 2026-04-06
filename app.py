@@ -1502,6 +1502,7 @@ else:
         display_df["Data"] = display_df["Data"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Data aktualizacji"] = display_df["Data aktualizacji"].dt.strftime("%Y-%m-%d %H:%M").fillna("-")
         display_df["Historia zmian"] = display_df["Historia zmian"].apply(lambda value: len(safe_json_loads(value, [])))
+        full_description_df = display_df.copy()
         compact_display_df = display_df[
             [
                 "ID",
@@ -1513,19 +1514,22 @@ else:
                 "Data aktualizacji",
             ]
         ].copy()
-        compact_display_df.index = range(1, len(compact_display_df) + 1)
+        compact_display_df["Opis"] = compact_display_df["Opis"].apply(
+            lambda value: (str(value)[:55] + "…") if len(str(value)) > 55 else str(value)
+        )
         styled_display_df = compact_display_df.style.map(style_report_status, subset=["Status"])
         st.dataframe(
             styled_display_df,
             use_container_width=True,
+            hide_index=True,
             column_config={
                 "ID": st.column_config.NumberColumn(
                     "ID",
-                    width="tiny",
+                    width="small",
                 ),
                 "Data": st.column_config.TextColumn(
                     "Data",
-                    width="small",
+                    width="medium",
                 ),
                 "Nazwa użytkownika": st.column_config.TextColumn(
                     "Użytkownik",
@@ -1541,15 +1545,24 @@ else:
                 ),
                 "Urządzenie": st.column_config.TextColumn(
                     "Urządzenie",
-                    width="medium",
+                    width="large",
                 ),
                 "Data aktualizacji": st.column_config.TextColumn(
                     "Aktualizacja",
-                    width="small",
+                    width="medium",
                 ),
             },
             height=420,
         )
+        long_description_rows = full_description_df[
+            full_description_df["Opis"].astype(str).str.len() > 55
+        ][["ID", "Nazwa użytkownika", "Opis"]].copy()
+        if not long_description_rows.empty:
+            with st.expander("Pokaż pełne opisy dłuższych zgłoszeń"):
+                for _, long_row in long_description_rows.iterrows():
+                    st.markdown(
+                        f"**#{int(long_row['ID'])} | {long_row['Nazwa użytkownika']}**\n\n{long_row['Opis']}"
+                    )
         st.caption("Główny widok pokazuje najważniejsze informacje. Rozwiązanie, komentarze i historia zmian są dostępne w sekcji edycji zgłoszenia.")
         st.caption("Cały rejestr jest widoczny dla wszystkich zalogowanych użytkowników.")
 
