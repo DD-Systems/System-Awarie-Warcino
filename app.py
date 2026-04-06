@@ -67,6 +67,23 @@ def parse_local_datetime_series(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce")
 
 
+def get_request_ip() -> str:
+    context_ip = getattr(st.context, "ip_address", None)
+    if context_ip and str(context_ip).strip().lower() != "none":
+        return str(context_ip).strip()
+
+    headers = getattr(st.context, "headers", None)
+    if headers:
+        for header_name in ("x-forwarded-for", "x-real-ip", "cf-connecting-ip"):
+            header_value = headers.get(header_name)
+            if header_value:
+                first_ip = str(header_value).split(",")[0].strip()
+                if first_ip and first_ip.lower() != "none":
+                    return first_ip
+
+    return ""
+
+
 def style_report_status(value: str) -> str:
     status = str(value).strip().lower()
     if status == "zamknięte":
@@ -699,6 +716,7 @@ def load_reports() -> pd.DataFrame:
             df[column] = ""
 
     df = df[REPORT_COLUMNS].copy()
+    df["Adres IP"] = df["Adres IP"].replace(["None", "none", "nan", "NaN"], "").fillna("")
     df["Status"] = df["Status"].replace("", pd.NA).fillna("Nowe")
     df["Rozwiązanie"] = df["Rozwiązanie"].fillna("")
     df["Historia zmian"] = df["Historia zmian"].apply(lambda value: dumps_compact(safe_json_loads(value, [])))
@@ -1501,7 +1519,7 @@ else:
     opis = ""
     email = st.session_state.user_email
     nazwa_uzytkownika = st.session_state.user_name
-    request_ip = str(getattr(st.context, "ip_address", "") or "")
+    request_ip = get_request_ip()
     telefon = ""
     urzadzenie = "Drukarka"
     if not is_admin:
@@ -1699,7 +1717,7 @@ else:
                             f"Email zgłaszającego: {selected_report['Email'] or 'brak'}"
                         )
                         admin_meta_col2.caption(
-                            f"Adres IP zgłoszenia: {selected_report['Adres IP'] or 'brak'}"
+                            f"Adres IP zgłoszenia: {selected_report['Adres IP'] or 'lokalnie niedostępne'}"
                         )
 
                     with st.form(f"edit_report_form_{selected_id}"):
