@@ -847,6 +847,10 @@ def get_secret_bool(name: str, default: bool = False) -> bool:
     return raw_value in {"1", "true", "yes", "on"}
 
 
+def get_telegram_config_status() -> tuple[bool, bool]:
+    return bool(get_secret_value("TELEGRAM_BOT_TOKEN")), bool(get_secret_value("TELEGRAM_CHAT_ID"))
+
+
 def send_telegram_notification(title: str, body_lines: list[str]) -> tuple[bool, str]:
     bot_token = get_secret_value("TELEGRAM_BOT_TOKEN")
     chat_id = get_secret_value("TELEGRAM_CHAT_ID")
@@ -1484,21 +1488,28 @@ else:
 
     if is_admin:
         st.markdown("<div class='section-title'><h3>Dashboard administratora</h3></div>", unsafe_allow_html=True)
-        if False:
-            test_ok, test_message = send_report_notification(
-                "Test powiadomienia email - Panel zgłoszeniowy awarii",
-                [
-                    "To jest test wiadomości wysłanej bezpośrednio z aplikacji.",
-                    "",
-                    f"Data testu: {get_local_timestamp()}",
-                    f"Uruchomił: {st.session_state.user_name}",
-                    f"Email administratora: {st.session_state.user_email}",
-                ],
+        with st.container(border=True):
+            st.markdown("#### Diagnostyka powiadomień")
+            telegram_token_ok, telegram_chat_ok = get_telegram_config_status()
+            st.caption(
+                f"Telegram BOT TOKEN: {'OK' if telegram_token_ok else 'BRAK'} | "
+                f"Telegram CHAT ID: {'OK' if telegram_chat_ok else 'BRAK'}"
             )
-            if test_ok:
-                st.success(test_message)
-            else:
-                st.error(test_message)
+            if st.button("Wyślij test Telegram", key="telegram_test_button"):
+                test_ok, test_message = send_telegram_notification(
+                    "Test Telegram - Panel zgłoszeniowy awarii",
+                    [
+                        "To jest test wiadomości wysłanej bezpośrednio z aplikacji.",
+                        "",
+                        f"Data testu: {get_local_timestamp()}",
+                        f"Uruchomił: {st.session_state.user_name}",
+                        f"Email administratora: {st.session_state.user_email}",
+                    ],
+                )
+                if test_ok:
+                    st.success(test_message)
+                else:
+                    st.error(test_message)
         if reports_source_df.empty:
             st.info("Dashboard będzie dostępny po dodaniu pierwszych zgłoszeń.")
         else:
@@ -1646,8 +1657,10 @@ else:
             notification_ok, notification_message = send_new_report_notification(nowy_wpis.iloc[0].to_dict())
             if not notification_ok:
                 st.session_state["report_edit_success"] = f"Zgłoszenie zapisano, ale powiadomienie nie zostało wysłane: {notification_message}"
+                st.session_state["report_edit_status_type"] = "warning"
             else:
                 st.session_state["report_edit_success"] = "Zgłoszenie zostało zapisane pomyślnie."
+                st.session_state["report_edit_status_type"] = "success"
             st.rerun()
         else:
             st.error("Opis awarii nie może być pusty.")
@@ -1745,8 +1758,14 @@ else:
                 st.rerun()
 
         edit_success_message = st.session_state.pop("report_edit_success", None)
+        edit_status_type = st.session_state.pop("report_edit_status_type", "success")
         if edit_success_message:
-            st.success(edit_success_message)
+            if edit_status_type == "warning":
+                st.warning(edit_success_message)
+            elif edit_status_type == "error":
+                st.error(edit_success_message)
+            else:
+                st.success(edit_success_message)
 
         display_df = filtered_df.copy()
         display_df["Data"] = pd.to_datetime(display_df["Data"], errors="coerce")
@@ -1937,10 +1956,11 @@ else:
                                         previous_status,
                                         st.session_state.user_name,
                                     )
-                                    if notify_ok:
-                                        st.info(notify_message)
-                                    else:
-                                        st.warning(notify_message)
+                                    status_messages = [notify_message]
+                                    status_has_warning = not notify_ok
+                                else:
+                                    status_messages = []
+                                    status_has_warning = False
                                 if new_comment_text:
                                     comment_notify_ok, comment_notify_message = send_comment_notification(
                                         reports_df.iloc[idx].to_dict(),
@@ -1948,11 +1968,15 @@ else:
                                         new_comment_text,
                                         bool(previous_comment.strip()),
                                     )
-                                    if comment_notify_ok:
-                                        st.info(comment_notify_message)
-                                    else:
-                                        st.warning(comment_notify_message)
-                                st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane."
+                                    status_messages.append(comment_notify_message)
+                                    if not comment_notify_ok:
+                                        status_has_warning = True
+                                if status_messages:
+                                    st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane. " + " ".join(status_messages)
+                                    st.session_state["report_edit_status_type"] = "warning" if status_has_warning else "success"
+                                else:
+                                    st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane."
+                                    st.session_state["report_edit_status_type"] = "success"
                                 st.rerun()
     else:
         st.info("Baza danych jest pusta. Dodaj pierwsze zgłoszenie.")
