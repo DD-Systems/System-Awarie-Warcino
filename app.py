@@ -818,6 +818,17 @@ def append_history_entry(history_value: str, actor: str, action: str) -> str:
     return dumps_compact(history)
 
 
+def append_comment_entry(comment_value: str, actor: str, comment: str) -> str:
+    existing_comment = str(comment_value or "").strip()
+    new_entry = f"[{get_local_timestamp()}] {actor}:\n{comment.strip()}"
+    return f"{existing_comment}\n\n{new_entry}".strip() if existing_comment else new_entry
+
+
+def format_comments(comment_value: str) -> str:
+    comment_text = str(comment_value or "").strip()
+    return html.escape(comment_text) if comment_text else "Brak komentarzy."
+
+
 def format_history(history_value: str) -> str:
     history = safe_json_loads(history_value, [])
     if not history:
@@ -1009,6 +1020,28 @@ def send_status_change_notification(report_row: dict, previous_status: str, acto
         body_lines.extend(["", "Rozwiązanie:", str(report_row["Rozwiązanie"])])
     return send_report_notification(
         f"Zmiana statusu zgłoszenia #{report_row['ID']} - {report_row['Status']}",
+        body_lines,
+    )
+
+
+def send_comment_notification(report_row: dict, actor: str, comment: str, is_reply: bool) -> tuple[bool, str]:
+    action_label = "Dodano odpowiedź na komentarz." if is_reply else "Dodano nowy komentarz."
+    subject_label = "Odpowiedź na komentarz" if is_reply else "Nowy komentarz"
+    body_lines = [
+        action_label,
+        "",
+        f"ID: {report_row['ID']}",
+        f"Użytkownik: {report_row['Nazwa użytkownika']}",
+        f"Email: {report_row['Email']}",
+        f"Urządzenie: {report_row['Urządzenie']}",
+        f"Status: {report_row['Status']}",
+        f"Dodał: {actor}",
+        "",
+        "Komentarz:",
+        comment.strip(),
+    ]
+    return send_report_notification(
+        f"{subject_label} w zgłoszeniu #{report_row['ID']} - {report_row['Urządzenie']}",
         body_lines,
     )
 
@@ -1810,6 +1843,12 @@ else:
                             height=100,
                             help="Przy zamknięciu zgłoszenia wpisz krótki opis rozwiązania.",
                         )
+                        new_comment = st.text_area(
+                            "Dodaj komentarz",
+                            value="",
+                            height=120,
+                            placeholder="Wpisz komentarz do zgłoszenia",
+                        )
                         save_edit_button = st.form_submit_button("Zapisz zmiany")
 
                     if is_admin:
@@ -1827,6 +1866,12 @@ else:
                     with st.expander("Historia zmian"):
                         st.markdown(
                             f"<div class='report-history'>{format_history(selected_report['Historia zmian'])}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                    with st.expander("Komentarze"):
+                        st.markdown(
+                            f"<div class='report-history'>{format_comments(selected_report['Komentarz'])}</div>",
                             unsafe_allow_html=True,
                         )
 
@@ -1855,6 +1900,8 @@ else:
                                 previous_phone = str(reports_df.at[idx, "Telefon"])
                                 previous_description = str(reports_df.at[idx, "Opis"])
                                 previous_solution = str(reports_df.at[idx, "Rozwiązanie"])
+                                previous_comment = str(reports_df.at[idx, "Komentarz"])
+                                new_comment_text = new_comment.strip()
                                 action_parts = []
                                 if previous_status != edited_status:
                                     action_parts.append(f"Status: {previous_status} -> {edited_status}")
@@ -1864,11 +1911,19 @@ else:
                                     action_parts.append("Zmieniono opis")
                                 if previous_solution != edited_solution.strip():
                                     action_parts.append("Zmieniono rozwiązanie")
+                                if new_comment_text:
+                                    action_parts.append("Dodano komentarz")
                                 action_label = ", ".join(action_parts) if action_parts else "Zapisano bez zmian"
                                 reports_df.at[idx, "Status"] = edited_status
                                 reports_df.at[idx, "Telefon"] = edited_phone.strip()
                                 reports_df.at[idx, "Opis"] = edited_description.strip()
                                 reports_df.at[idx, "Rozwiązanie"] = edited_solution.strip()
+                                if new_comment_text:
+                                    reports_df.at[idx, "Komentarz"] = append_comment_entry(
+                                        previous_comment,
+                                        st.session_state.user_name,
+                                        new_comment_text,
+                                    )
                                 reports_df.at[idx, "Historia zmian"] = append_history_entry(
                                     reports_df.at[idx, "Historia zmian"],
                                     st.session_state.user_name,
@@ -1886,6 +1941,17 @@ else:
                                         st.info(notify_message)
                                     else:
                                         st.warning(notify_message)
+                                if new_comment_text:
+                                    comment_notify_ok, comment_notify_message = send_comment_notification(
+                                        reports_df.iloc[idx].to_dict(),
+                                        st.session_state.user_name,
+                                        new_comment_text,
+                                        bool(previous_comment.strip()),
+                                    )
+                                    if comment_notify_ok:
+                                        st.info(comment_notify_message)
+                                    else:
+                                        st.warning(comment_notify_message)
                                 st.session_state["report_edit_success"] = "Dane zostały wprowadzone i zapisane."
                                 st.rerun()
     else:
